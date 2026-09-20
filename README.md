@@ -1,6 +1,6 @@
-# libpcapcie
+# pcieshark
 
-libpcapcie is a PCIe trace, enumeration, and analysis toolkit for building, inspecting, and validating PCIe traffic in a transparent, developer-friendly way. It combines a reusable C library, example programs, a Qt-based GUI, and a Zephyr/QEMU-backed topology flow to support both practical hardware bring-up and trace-driven investigation.
+pcieshark is a PCIe trace, enumeration, and analysis toolkit for building, inspecting, and validating PCIe traffic in a transparent, developer-friendly way. It combines a reusable C library, example programs, a Qt-based GUI, and a Zephyr/QEMU-backed topology flow to support both practical hardware bring-up and trace-driven investigation.
 
 The project is designed to be:
 - open and inspectable
@@ -118,7 +118,7 @@ You will also need a valid Zephyr kernel image available for the local target se
 ### 1. Clone and configure
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/khademullah/pcieshark
 cd libpcapcie
 cmake -S . -B build
 ```
