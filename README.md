@@ -9,6 +9,8 @@ The project is designed to be:
 - buildable with a standard CMake workflow
 - suitable for PCIe analysis, enumeration experiments, and link-validation workflows
 
+<img width="1024" height="1024" alt="WhatsApp Image 2026-09-20 at 16 22 00" src="https://github.com/user-attachments/assets/dffa6458-1808-46da-81ba-68accb09879e" />
+
 ## Demo
 
 Watch the AI PCIe emulator walkthrough and the PCIe trace/performance workflow in the demo below.
