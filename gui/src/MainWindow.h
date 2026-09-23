@@ -25,6 +25,9 @@
 #include <QSet>
 #include <QTimer>
 #include <QProcess>
+#include <QJsonObject>
+#include <QJsonArray>
+#include <QTextBrowser>
 
 class MainWindow : public QMainWindow
 {
@@ -78,6 +81,10 @@ private:
     QTimer *liveTraceTimer;
     QProcess *liveTraceProcess;
     QString liveTracePath;
+    QString currentTopologyJsonPath;
+    QJsonObject currentTopology;
+    QTextBrowser *aiTopologyView;
+    QLabel *aiTopologyPathLabel;
     QSet<QString> liveTraceSeen;
     int currentAiPerformanceTargetTps = 0;
     int currentAiPerformanceTargetLatencyNs = 0;
@@ -85,6 +92,12 @@ private:
     bool suppressAiRunnerExitWarning;
     void applyTheme();
     void colorRows();
+    QString findRepoPath(const QStringList &relativeCandidates) const;
+    QJsonObject generateTopologyFromCounts(int rootPorts, int endpointsPerRoot) const;
+    bool loadTopologyFile(const QString &path, QString *error);
+    QString materializeCurrentTopology(const QString &workDir);
+    void renderCurrentTopology();
+    void injectFabricEnumerationPackets();
     void runAiPerformanceScenario(const QString &profile,
                                  int rootPorts,
                                  int endpointsPerRoot,

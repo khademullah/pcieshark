@@ -221,6 +221,19 @@ pcieshark/fast:
 .PHONY : pcieshark/fast
 
 #=============================================================================
+# Target rules for targets named enumerate_topology
+
+# Build rule for target.
+enumerate_topology: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 enumerate_topology
+.PHONY : enumerate_topology
+
+# fast build rule for target.
+enumerate_topology/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/enumerate_topology.dir/build.make CMakeFiles/enumerate_topology.dir/build
+.PHONY : enumerate_topology/fast
+
+#=============================================================================
 # Target rules for targets named pcieshark_gui
 
 # Build rule for target.
@@ -258,6 +271,30 @@ pcieshark_gui_autogen: cmake_check_build_system
 pcieshark_gui_autogen/fast:
 	$(MAKE) $(MAKESILENT) -f gui/CMakeFiles/pcieshark_gui_autogen.dir/build.make gui/CMakeFiles/pcieshark_gui_autogen.dir/build
 .PHONY : pcieshark_gui_autogen/fast
+
+examples/enumerate_topology.o: examples/enumerate_topology.c.o
+.PHONY : examples/enumerate_topology.o
+
+# target to build an object file
+examples/enumerate_topology.c.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/enumerate_topology.dir/build.make CMakeFiles/enumerate_topology.dir/examples/enumerate_topology.c.o
+.PHONY : examples/enumerate_topology.c.o
+
+examples/enumerate_topology.i: examples/enumerate_topology.c.i
+.PHONY : examples/enumerate_topology.i
+
+# target to preprocess a source file
+examples/enumerate_topology.c.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/enumerate_topology.dir/build.make CMakeFiles/enumerate_topology.dir/examples/enumerate_topology.c.i
+.PHONY : examples/enumerate_topology.c.i
+
+examples/enumerate_topology.s: examples/enumerate_topology.c.s
+.PHONY : examples/enumerate_topology.s
+
+# target to generate assembly for a file
+examples/enumerate_topology.c.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/enumerate_topology.dir/build.make CMakeFiles/enumerate_topology.dir/examples/enumerate_topology.c.s
+.PHONY : examples/enumerate_topology.c.s
 
 examples/pci_link_check.o: examples/pci_link_check.c.o
 .PHONY : examples/pci_link_check.o
@@ -595,6 +632,30 @@ src/pcapcie.c.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/pcapcie.dir/build.make CMakeFiles/pcapcie.dir/src/pcapcie.c.s
 .PHONY : src/pcapcie.c.s
 
+src/pcie_topology.o: src/pcie_topology.c.o
+.PHONY : src/pcie_topology.o
+
+# target to build an object file
+src/pcie_topology.c.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/pcapcie.dir/build.make CMakeFiles/pcapcie.dir/src/pcie_topology.c.o
+.PHONY : src/pcie_topology.c.o
+
+src/pcie_topology.i: src/pcie_topology.c.i
+.PHONY : src/pcie_topology.i
+
+# target to preprocess a source file
+src/pcie_topology.c.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/pcapcie.dir/build.make CMakeFiles/pcapcie.dir/src/pcie_topology.c.i
+.PHONY : src/pcie_topology.c.i
+
+src/pcie_topology.s: src/pcie_topology.c.s
+.PHONY : src/pcie_topology.s
+
+# target to generate assembly for a file
+src/pcie_topology.c.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/pcapcie.dir/build.make CMakeFiles/pcapcie.dir/src/pcie_topology.c.s
+.PHONY : src/pcie_topology.c.s
+
 src/tlp.o: src/tlp.c.o
 .PHONY : src/tlp.o
 
@@ -629,6 +690,7 @@ help:
 	@echo "... rebuild_cache"
 	@echo "... pcieshark_gui_autogen"
 	@echo "... pcieshark_gui_autogen_timestamp_deps"
+	@echo "... enumerate_topology"
 	@echo "... pcapcie"
 	@echo "... pci_link_check"
 	@echo "... pci_link_matrix"
@@ -638,6 +700,9 @@ help:
 	@echo "... simple_tlp_test"
 	@echo "... sniff_and_send"
 	@echo "... tlp_capture"
+	@echo "... examples/enumerate_topology.o"
+	@echo "... examples/enumerate_topology.i"
+	@echo "... examples/enumerate_topology.s"
 	@echo "... examples/pci_link_check.o"
 	@echo "... examples/pci_link_check.i"
 	@echo "... examples/pci_link_check.s"
@@ -680,6 +745,9 @@ help:
 	@echo "... src/pcapcie.o"
 	@echo "... src/pcapcie.i"
 	@echo "... src/pcapcie.s"
+	@echo "... src/pcie_topology.o"
+	@echo "... src/pcie_topology.i"
+	@echo "... src/pcie_topology.s"
 	@echo "... src/tlp.o"
 	@echo "... src/tlp.i"
 	@echo "... src/tlp.s"

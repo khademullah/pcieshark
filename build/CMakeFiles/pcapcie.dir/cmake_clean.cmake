@@ -13,6 +13,8 @@ file(REMOVE_RECURSE
   "CMakeFiles/pcapcie.dir/src/filter.c.o.d"
   "CMakeFiles/pcapcie.dir/src/pcapcie.c.o"
   "CMakeFiles/pcapcie.dir/src/pcapcie.c.o.d"
+  "CMakeFiles/pcapcie.dir/src/pcie_topology.c.o"
+  "CMakeFiles/pcapcie.dir/src/pcie_topology.c.o.d"
   "CMakeFiles/pcapcie.dir/src/tlp.c.o"
   "CMakeFiles/pcapcie.dir/src/tlp.c.o.d"
   "libpcapcie.a"

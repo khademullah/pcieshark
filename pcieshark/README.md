@@ -1,8 +1,11 @@
+<p align="center">
+  <img src="../docs/assets/logo.png" alt="pcieshark" width="140">
+</p>
+
 # pcieshark
 
 pcieshark is the PCIe trace analysis and inspection front-end for libpcapcie.
 It gives the project a single product identity for both the command-line trace parser and the desktop GUI viewer.
-<img width="1024" height="1024" alt="WhatsApp Image 2026-09-20 at 16 22 00" src="https://github.com/user-attachments/assets/52d818f8-3b58-4825-ae3f-2e46131066b4" />
 
 ## Purpose
 
@@ -48,7 +51,8 @@ A practical workflow is:
 ## Example
 
 ```bash
-cd /home/khadem/libpcapcie
+git clone git@github.com:khademullah/pcieshark.git
+cd pcieshark
 cmake -S . -B build
 cmake --build build
 ./build/pcieshark /tmp/pcie_trace.csv

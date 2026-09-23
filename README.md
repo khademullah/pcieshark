@@ -1,131 +1,102 @@
-# pcieshark
+<p align="center">
+  <img src="docs/assets/logo.png" alt="pcieshark" width="180">
+</p>
 
-pcieshark is a PCIe trace, enumeration, and analysis toolkit for building, inspecting, and validating PCIe traffic in a transparent, developer-friendly way. It combines a reusable C library, example programs, a Qt-based GUI, and a Zephyr/QEMU-backed topology flow to support both practical hardware bring-up and trace-driven investigation.
+<h1 align="center">pcieshark</h1>
 
-The project is designed to be:
+<p align="center">
+  Open PCIe trace, enumeration, and analysis toolkit
+</p>
+
+pcieshark is a developer-facing toolkit for building, inspecting, and validating PCIe traffic. It combines a reusable C library (`libpcapcie`), example programs, a Qt GUI, and a Zephyr/QEMU topology flow so the same stack works on real hardware and emulated fabrics.
+
+It is designed to be:
+
 - open and inspectable
 - backend-driven and portable
-- useful for both real hardware and emulated PCIe environments
+- useful on both real devices and emulated PCIe topologies
 - buildable with a standard CMake workflow
-- suitable for PCIe analysis, enumeration experiments, and link-validation workflows
-
-<img width="1024" height="1024" alt="WhatsApp Image 2026-09-20 at 16 22 00" src="https://github.com/user-attachments/assets/dffa6458-1808-46da-81ba-68accb09879e" />
 
 ## Demo
 
-Watch the AI PCIe emulator walkthrough and the PCIe trace/performance workflow in the demo below.
+Watch the AI PCIe emulator walkthrough and the PCIe trace/performance workflow:
 
 ![AI PCIe Emulator Demo](AI_PCIe_Emulator_optimized.gif)
 
 [Download MP4 demo](AI_PCIe_Emulator_optimized.mp4)
 
-This demo highlights:
-- live PCIe trace viewing
-- AI topology enumeration flow
-- golden AI fabric layout
-- performance measurement and runtime status
+The demo covers live TLP viewing, AI topology enumeration, the golden fabric layout, and runtime performance status.
 
 ## Why this project exists
 
-PCIe bring-up and validation often requires a mix of:
-- raw trace inspection
-- config-space enumeration
-- protocol understanding
-- link-performance analysis
-- hardware/software integration checks
+PCIe bring-up usually needs a mix of raw trace inspection, config-space enumeration, protocol decode, and link-performance checks. pcieshark gives those workflows a practical foundation without a closed vendor stack:
 
-libpcapcie provides a practical foundation for these tasks without depending on a closed vendor stack or a complex proprietary toolchain. It supports direct PCIe backend access, high-level TLP analysis, and a GUI workflow for trace review.
-
-## Project focus
-
-The current project is centered on the complete software stack:
-- a reusable PCIe library
-- backend abstraction for different access methods
-- trace capture and parsing
-- GUI inspection and filtering
-- Zephyr-based QEMU topology support for realistic enumeration scenarios
-- optional experimental AI topology flows separate from the core project
-
-This is the stable baseline for the project, while AI-specific topology work remains an extension rather than the primary release definition.
+- direct PCIe backend access
+- high-level TLP create/parse/filter
+- GUI review of live or captured traces
+- optional Zephyr/QEMU topology for enumeration experiments
 
 ## Core features
 
 - PCIe TLP creation and parsing
-- Configuration-space read/write support
+- Configuration-space read/write
 - TLP filtering and sniffing hooks
-- Library-level link and topology inspection
-- Local backend abstraction for PCI, dummy, FPGA-focused, ARM DS, and similar targets
-- Trace capture and export workflows
-- Qt-based GUI for live or offline trace browsing
-- Zephyr/QEMU topology execution for real enumeration-style exercises
-- CMake-based build and local example tooling
+- Link and topology inspection
+- Backends for PCI, dummy, FPGA, ARM DS, and similar targets
+- Trace capture and export (pcap-style or CSV)
+- Qt GUI for live or offline packet browsing
+- Zephyr/QEMU topology execution for enumeration-style work
+- JSON-driven topology presets for AI/accelerator fabrics
 
 ## Repository structure
 
 - `src/` — core library and backend implementations
-- `include/pcapcie/` — public headers
-- `examples/` — sample executables for TLP and backend flows
-- `gui/` — Qt desktop application for trace visualization and workflow controls
-- `scripts/` — runtime and topology helper scripts
-- `pcieshark/` — project-specific trace-analysis documentation and UI notes
-- `build/` — local generated build artifacts
+- `include/pcapcie/` — public library headers
+- `include/pcie_topology.h` — topology model used by the emulator
+- `examples/` — CLI tools for TLP, link, capture, and topology flows
+- `gui/` — Qt desktop application
+- `config/` — topology JSON presets
+- `scripts/` — QEMU/Zephyr helpers
+- `pcieshark/` — product notes for the CLI and GUI front-end
+- `docs/assets/` — project artwork
 
-## Supported workflow
+## Supported workflows
 
-The project supports several practical usage models:
-
-1. Trace-only workflow
-   - open a captured trace
-   - inspect TLPs in the table view
-   - filter by direction, type, or identifier
-   - inspect packet-level details
-
-2. Live trace workflow
-   - run the Zephyr/QEMU-backed topology
-   - collect config-space traffic
-   - review TLPs in real time
-
-3. PCI enumeration workflow
-   - use the backend abstraction to enumerate or inspect a target PCIe device
-   - validate links and reported device information
-
-4. Experimental topology workflow
-   - run an emulated Zephyr AI topology
-   - inspect enumeration behavior and topology layout
-   - keep it separate from the core trace-analysis path
+1. **Trace-only** — open a captured file, inspect TLPs, filter by direction, type, or identifier.
+2. **Live trace** — run the Zephyr/QEMU topology, collect config-space traffic, review packets in real time.
+3. **PCI enumeration** — use a backend to inspect a target device and validate reported link information.
+4. **Experimental topology** — run an emulated AI fabric, inspect enumeration, keep that path separate from the main TLP stream.
 
 ## Requirements
 
-### Minimum system requirements
-
-- Linux environment
-- CMake 3.10+
+- Linux
+- CMake 3.13+
 - C/C++ toolchain
 - Qt 6 development libraries for the GUI
-- Zephyr toolchain if using the emulated topology flow
+- Zephyr SDK and a kernel image for the emulated topology flow
 
-### Recommended environment for Zephyr-backed emulation
+### Zephyr-backed emulation
 
 ```bash
 source ~/zephyrproject/.venv/bin/activate
 export ZEPHYR_BASE=~/zephyrproject/zephyr
 export ZEPHYR_TOOLCHAIN_VARIANT=zephyr
-export ZEPHYR_SDK_INSTALL_DIR=/home/khadem/zephyr-sdk-1.0.1
+export ZEPHYR_SDK_INSTALL_DIR=$HOME/zephyr-sdk-1.0.1
 ```
 
-You will also need a valid Zephyr kernel image available for the local target setup, e.g. a build under a Zephyr firmware project such as `build/zephyr/zephyr.elf`.
+Point `KERNEL_PATH` at a built Zephyr image if it is not already available as `build/zephyr/zephyr.elf`.
 
 ## Quick start
 
 ### 1. Clone and configure
 
 ```bash
-git clone https://github.com/khademullah/pcieshark
-cd libpcapcie
+git clone git@github.com:khademullah/pcieshark.git
+cd pcieshark
 cmake -S . -B build
 ```
 
-### 2. Build the project
+### 2. Build
 
 ```bash
 cmake --build build -j$(nproc)
@@ -137,19 +108,13 @@ cmake --build build -j$(nproc)
 ./build/gui/pcieshark
 ```
 
-The GUI supports:
-- opening a trace file
-- saving traces
-- viewing packet details
-- filtering and looking through rows
-- running topology-related enumeration workflows
+The GUI can open and save traces, show packet details, filter rows, and run topology-related enumeration workflows.
 
 ## Build targets
 
-The project builds a set of tools and examples, including:
-
 ```bash
 ./build/pcieshark
+./build/enumerate_topology
 ./build/pci_link_check
 ./build/pci_link_matrix
 ./build/pci_link_status
@@ -160,162 +125,100 @@ The project builds a set of tools and examples, including:
 
 ## Trace workflow
 
-### Open a trace file
+- **Open** a captured trace in the GUI and inspect packets in the table view.
+- **Save** the active trace for later comparison or replay.
+- **Inspect a row** for timestamp, direction, TLP type, requester ID, and payload metadata.
 
-Use the GUI to load a previously captured trace file and inspect the packets in a table-based view.
+CLI mode uses the same product name:
 
-### Save a trace
-
-The GUI allows exporting the active trace to a local file so it can be shared, compared, or replayed later.
-
-### Examine a row
-
-Selecting a packet entry reveals details such as:
-- timestamp
-- direction
-- TLP type
-- requester ID
-- payload and metadata where available
+```bash
+./build/pcieshark /tmp/pcie_trace.csv
+./build/pcieshark /tmp/pcie_trace.csv --summary
+```
 
 ## AI PCIe emulator
 
-The AI PCIe emulator is the project’s higher-level workload model for realistic PCIe topology validation in AI and accelerator-heavy environments. It is built around a fixed golden topology that reflects a data-center style PCIe fabric, rather than a synthetic dummy-only path.
+The emulator models a data-center style PCIe fabric for accelerator-heavy systems, not just a dummy traffic generator. The same view supports enumeration, trace capture, and performance measurement.
 
-The emulator is designed to model the topology used by accelerator-heavy systems:
+Typical fabric:
+
 - CPU complex as the root domain
-- four root ports, each representing a PCIe fabric branch
+- four root ports, one fabric branch each
 - upstream switch hierarchy per branch
-- NVMe endpoints for storage and data-path traffic
-- GPU-like accelerator endpoints for compute placement
-- SmartNIC or network endpoints for fabric connectivity
-
-This is not just a traffic generator. It is a topology-aware emulation model that supports enumeration, trace capture, and performance measurement from the same system view.
+- NVMe endpoints for storage
+- GPU-like accelerator endpoints
+- SmartNIC / network endpoints
 
 ### Golden AI topology
 
-The default preset uses a deterministic AI fabric layout:
+The default preset is a deterministic fabric in `config/ai_golden_topology.json`:
 
 - root bus: `PCIe Bus 00`
-- root ports: `rp1`, `rp2`, `rp3`, `rp4`
-- upstream switches: `switch0_up` to `switch3_up`
-- downstream ports: `dp0`, `dp1` on each switch
-- endpoints:
-  - GPU 1..4
-  - NVMe 1..2
-  - SmartNIC 1..2
-  - data-path and acceleration devices per branch
+- root ports: `rp1` … `rp4`
+- switches with downstream ports `dp0` / `dp1`
+- endpoints: GPU 1–4, NVMe 1–2, SmartNIC 1–2, plus per-branch data-path devices
 
-This topology is intentionally fixed and sane for benchmarking and trace-driven validation. It gives a repeatable baseline before introducing custom tuning or scenario-specific modifications.
+This layout is intentionally fixed so benchmarks and traces stay comparable.
 
 ### Enumeration flow
 
-The AI emulator supports real-device-style enumeration as part of the flow, not just log generation. The workflow is:
+1. Launch the Zephyr/QEMU topology.
+2. Boot the guest with the PCIe fabric model.
+3. Enumerate the topology from the guest.
+4. Collect bus/device information into a structured log.
+5. Parse that list into a PCIe map for the GUI and analysis tools.
 
-1. launch the Zephyr/QEMU topology
-2. boot the guest image with the PCIe fabric model
-3. enumerate the topology from the guest side
-4. collect bus and device information in a structured log
-5. parse the device list into a readable PCIe map for the GUI and analysis tools
-
-This is how the project moves beyond a dummy backend toward a real topology-aware environment for AI workloads.
-
-The separate `pcie ls` path is intentionally kept isolated from the main TLP trace stream so that:
-- the primary trace remains readable and stable
-- enumeration data can be inspected independently
-- performance runs and trace captures do not overwrite one another
+The `pcie ls` path stays isolated from the main TLP stream so enumeration logs do not overwrite performance or capture runs.
 
 ### Performance model
 
-The AI PCIe emulator also supports a performance-oriented scenario model with configurable workload parameters, including:
-- root ports
-- endpoints per root
-- buses
-- iterations
-- latency
-- tokens/sec
-- burst size
-- jitter
-- drop rate
+Configurable workload parameters include root ports, endpoints per root, buses, iterations, latency, tokens/sec, burst size, jitter, and drop rate.
 
-These parameters allow the project to emulate realistic AI data-plane characteristics, where the fabric is evaluated not only for enumeration correctness but also for end-to-end behavior under a controlled PCIe load pattern.
+Default golden profile:
 
-Typical performance questions this model helps answer:
-- how much fabric latency is introduced by the topology?
-- what is the effective throughput under sustained traffic?
-- how does the workload behave under bursty transfers and jitter?
-- what is the effect of link contention or packet loss at the fabric layer?
+| Parameter | Value |
+| --- | --- |
+| Root ports | 4 |
+| Endpoints / root | 2 |
+| Buses | 4 |
+| Iterations | 20 |
+| Latency | 80 ns |
+| Tokens/sec | 500000 |
+| Burst size | 32 |
+| Jitter | 25 ns |
+| Drop rate | 0.00 |
 
-### Default performance preset
-
-The current golden topology ships with a default AI performance profile tuned for a realistic accelerator-system baseline:
-
-- root ports: 4
-- endpoints/root: 2
-- buses: 4
-- iterations: 20
-- latency (ns): 80
-- tokens/sec: 500000
-- burst size: 32
-- jitter (ns): 25
-- drop rate: 0.00
-
-This acts as a clean starting point for AI workload modeling and is meant to be a stable baseline before advanced customization.
-
-### Runner behavior
-
-The project includes a dedicated runner at:
+### Runner
 
 ```bash
 ./scripts/run_zephyr_ai_topology.sh
 ```
 
-It validates the environment and starts the emulated topology with safe startup checks, including:
-- Zephyr virtual environment
-- Zephyr source tree
-- SDK installation
-- QEMU availability
-- kernel image presence
-- stale QEMU lock cleanup
-
-The runner is designed to keep the normal trace path intact while optionally collecting separate enumeration logs when needed.
-
-### Reference command
-
-The underlying QEMU topology is started through the Zephyr environment, but the important point is not the raw command itself; the real value is the AI PCIe topology and model it creates.
-
-```bash
-./scripts/run_zephyr_ai_topology.sh
-```
-
-This is the supported entry point for the AI-enabled enumeration and performance workflow.
+The script checks the Zephyr venv, source tree, SDK, QEMU binary, and kernel image, then starts the emulated topology. Override paths with `ZEPHYR_BASE`, `ZEPHYR_SDK_INSTALL_DIR`, `KERNEL_PATH`, and `TOPOLOGY_JSON` as needed.
 
 ## PCI backend notes
 
-The built-in PCI backend reads and writes Linux sysfs PCI config data:
+The built-in PCI backend reads and writes Linux sysfs config space:
 
 ```text
 /sys/bus/pci/devices/<domain:bus:device.function>/config
 ```
 
-This typically requires:
-- root privileges, or
-- a kernel/device permission setup that permits direct sysfs access
-
-To identify a likely candidate device:
+This typically needs root privileges or a permission setup that allows sysfs access.
 
 ```bash
 lspci -Dnn | grep -Ei 'Express|PCIe|Bridge'
 ```
 
-A real PCIe endpoint will generally expose Express-related capability information; a host bridge or virtualized system device is not the right target when validating a real endpoint path.
+Use a real PCIe endpoint with Express capability data. A host bridge or virtualized system device is usually the wrong target.
 
 ## Supported backends
 
-- `dummy` — deterministic software-only mock backend
-- `pci` — Linux sysfs access to PCI config space
-- `fpga` — FPGA-oriented backend path
-- `armds` — ARM DS bridge style backend path
-- `xgig` — external vendor-style backend path
+- `dummy` — deterministic software-only mock
+- `pci` — Linux sysfs PCI config space
+- `fpga` — FPGA-oriented path
+- `armds` — ARM DS bridge style path
+- `xgig` — external vendor-style path
 
 ## Example usage
 
@@ -335,7 +238,7 @@ pcie_close(ctx);
 
 ## Link capability checks
 
-The library can inspect PCIe capability blocks and report key link state information, including the maximum and negotiated link speed/width and the resulting PCIe generation. This is useful for validation and bring-up work where the link must meet a target generation or lane width.
+The library can inspect PCIe capability blocks and report max/negotiated link speed, width, and generation.
 
 ```c
 pcie_link_status_t status = {0};
@@ -347,7 +250,7 @@ if (pcie_get_link_status(ctx, &status) == 0) {
 }
 ```
 
-A simple minimum-target helper is also available:
+Minimum-target helper:
 
 ```c
 int pass = 0;
@@ -358,52 +261,28 @@ if (pcie_check_link_target(ctx, PCIE_GEN_5, 1, &pass) == 0 && pass) {
 
 ## Trace capture and export
 
-The library can record TLPs and export them to a host-friendly format for later review.
-
-### Pcap-style export
-
 ```bash
 ./build/tlp_capture dummy /tmp/pcie_tlps.pcap
-hexdump -C /tmp/pcie_tlps.pcap | head
-```
-
-### CSV export
-
-```bash
 ./build/tlp_capture dummy /tmp/pcie_tlps.csv csv
 ```
 
-This provides a practical workflow for offline analysis, channel debugging, and GUI review.
-
 ## GUI overview
 
-The Qt application provides a visual interface for:
-- opening a trace file
-- saving a trace
-- viewing a packet table
-- examining packet metadata
-- comparing live versus captured traffic
-- exploring topology-driven enumeration logs when needed
+The Qt application focuses on readable packet inspection:
 
-The GUI is designed to focus on clear, readable packet inspection and to keep the main trace flow separate from extra guest-side logs such as `pcie ls`.
+- open / save traces
+- packet table and row metadata
+- live versus captured traffic
+- optional topology enumeration logs, kept separate from the main TLP view
 
 ## Release status
 
-This project is a complete, stable baseline for the core PCIe analysis and GUI workflow. It includes the foundational library, GUI, backend support, examples, and the Zephyr/QEMU topology tooling required for realistic enumeration experiments.
-
-Experimental AI topology and performance-oriented flows are supported as extensions, but they are not the primary definition of the first stable project baseline.
+The core library, GUI, backends, examples, and Zephyr/QEMU topology tooling form a stable baseline. Experimental AI topology and performance flows are supported as extensions, not the definition of the first release.
 
 ## Contributing
 
-Contributions are welcome for:
-- backend improvements
-- better parsing and filtering
-- trace visualization enhancements
-- PCIe topology validation improvements
-- documentation and examples
-
-Pull requests should keep the project readable, well-documented, and aligned with the existing project focus.
+See [CONTRIBUTING.md](CONTRIBUTING.md). Useful areas include backends, parsing/filtering, visualization, topology validation, and examples.
 
 ## License
 
-This project is released under the repository license in the top-level project files. Please review the license before redistribution or commercial use.
+[MIT](LICENSE)

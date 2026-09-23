@@ -13,6 +13,7 @@ add_library(pcapcie
     src/pcapcie.c
     src/tlp.c
     src/filter.c
+    src/pcie_topology.c
     src/backend_dummy.c
     src/backend_fpga.c
     src/backend_armds.c
@@ -48,6 +49,10 @@ add_executable(pcieshark
     examples/pshark.c
 )
 
+add_executable(enumerate_topology
+    examples/enumerate_topology.c
+)
+
 add_executable(pshark ALIAS pcieshark)
 
 target_link_libraries(sniff_and_send pcapcie)
@@ -57,6 +62,7 @@ target_link_libraries(pci_link_check pcapcie)
 target_link_libraries(pci_link_matrix pcapcie)
 target_link_libraries(tlp_capture pcapcie)
 target_link_libraries(pcieshark pcapcie)
+target_link_libraries(enumerate_topology pcapcie)
 
 if (PCIE_BUILD_GUI)
     add_subdirectory(gui)

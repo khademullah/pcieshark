@@ -114,10 +114,24 @@ CMakeFiles/pcapcie.dir/src/filter.c.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling C source to assembly CMakeFiles/pcapcie.dir/src/filter.c.s"
 	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -S /home/khadem/libpcapcie/src/filter.c -o CMakeFiles/pcapcie.dir/src/filter.c.s
 
+CMakeFiles/pcapcie.dir/src/pcie_topology.c.o: CMakeFiles/pcapcie.dir/flags.make
+CMakeFiles/pcapcie.dir/src/pcie_topology.c.o: /home/khadem/libpcapcie/src/pcie_topology.c
+CMakeFiles/pcapcie.dir/src/pcie_topology.c.o: CMakeFiles/pcapcie.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/khadem/libpcapcie/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Building C object CMakeFiles/pcapcie.dir/src/pcie_topology.c.o"
+	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -MD -MT CMakeFiles/pcapcie.dir/src/pcie_topology.c.o -MF CMakeFiles/pcapcie.dir/src/pcie_topology.c.o.d -o CMakeFiles/pcapcie.dir/src/pcie_topology.c.o -c /home/khadem/libpcapcie/src/pcie_topology.c
+
+CMakeFiles/pcapcie.dir/src/pcie_topology.c.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing C source to CMakeFiles/pcapcie.dir/src/pcie_topology.c.i"
+	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -E /home/khadem/libpcapcie/src/pcie_topology.c > CMakeFiles/pcapcie.dir/src/pcie_topology.c.i
+
+CMakeFiles/pcapcie.dir/src/pcie_topology.c.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling C source to assembly CMakeFiles/pcapcie.dir/src/pcie_topology.c.s"
+	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -S /home/khadem/libpcapcie/src/pcie_topology.c -o CMakeFiles/pcapcie.dir/src/pcie_topology.c.s
+
 CMakeFiles/pcapcie.dir/src/backend_dummy.c.o: CMakeFiles/pcapcie.dir/flags.make
 CMakeFiles/pcapcie.dir/src/backend_dummy.c.o: /home/khadem/libpcapcie/src/backend_dummy.c
 CMakeFiles/pcapcie.dir/src/backend_dummy.c.o: CMakeFiles/pcapcie.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/khadem/libpcapcie/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Building C object CMakeFiles/pcapcie.dir/src/backend_dummy.c.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/khadem/libpcapcie/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_5) "Building C object CMakeFiles/pcapcie.dir/src/backend_dummy.c.o"
 	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -MD -MT CMakeFiles/pcapcie.dir/src/backend_dummy.c.o -MF CMakeFiles/pcapcie.dir/src/backend_dummy.c.o.d -o CMakeFiles/pcapcie.dir/src/backend_dummy.c.o -c /home/khadem/libpcapcie/src/backend_dummy.c
 
 CMakeFiles/pcapcie.dir/src/backend_dummy.c.i: cmake_force
@@ -131,7 +145,7 @@ CMakeFiles/pcapcie.dir/src/backend_dummy.c.s: cmake_force
 CMakeFiles/pcapcie.dir/src/backend_fpga.c.o: CMakeFiles/pcapcie.dir/flags.make
 CMakeFiles/pcapcie.dir/src/backend_fpga.c.o: /home/khadem/libpcapcie/src/backend_fpga.c
 CMakeFiles/pcapcie.dir/src/backend_fpga.c.o: CMakeFiles/pcapcie.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/khadem/libpcapcie/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_5) "Building C object CMakeFiles/pcapcie.dir/src/backend_fpga.c.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/khadem/libpcapcie/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_6) "Building C object CMakeFiles/pcapcie.dir/src/backend_fpga.c.o"
 	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -MD -MT CMakeFiles/pcapcie.dir/src/backend_fpga.c.o -MF CMakeFiles/pcapcie.dir/src/backend_fpga.c.o.d -o CMakeFiles/pcapcie.dir/src/backend_fpga.c.o -c /home/khadem/libpcapcie/src/backend_fpga.c
 
 CMakeFiles/pcapcie.dir/src/backend_fpga.c.i: cmake_force
@@ -145,7 +159,7 @@ CMakeFiles/pcapcie.dir/src/backend_fpga.c.s: cmake_force
 CMakeFiles/pcapcie.dir/src/backend_armds.c.o: CMakeFiles/pcapcie.dir/flags.make
 CMakeFiles/pcapcie.dir/src/backend_armds.c.o: /home/khadem/libpcapcie/src/backend_armds.c
 CMakeFiles/pcapcie.dir/src/backend_armds.c.o: CMakeFiles/pcapcie.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/khadem/libpcapcie/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_6) "Building C object CMakeFiles/pcapcie.dir/src/backend_armds.c.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/khadem/libpcapcie/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_7) "Building C object CMakeFiles/pcapcie.dir/src/backend_armds.c.o"
 	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -MD -MT CMakeFiles/pcapcie.dir/src/backend_armds.c.o -MF CMakeFiles/pcapcie.dir/src/backend_armds.c.o.d -o CMakeFiles/pcapcie.dir/src/backend_armds.c.o -c /home/khadem/libpcapcie/src/backend_armds.c
 
 CMakeFiles/pcapcie.dir/src/backend_armds.c.i: cmake_force
@@ -159,7 +173,7 @@ CMakeFiles/pcapcie.dir/src/backend_armds.c.s: cmake_force
 CMakeFiles/pcapcie.dir/src/backend_xgig.c.o: CMakeFiles/pcapcie.dir/flags.make
 CMakeFiles/pcapcie.dir/src/backend_xgig.c.o: /home/khadem/libpcapcie/src/backend_xgig.c
 CMakeFiles/pcapcie.dir/src/backend_xgig.c.o: CMakeFiles/pcapcie.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/khadem/libpcapcie/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_7) "Building C object CMakeFiles/pcapcie.dir/src/backend_xgig.c.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/khadem/libpcapcie/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_8) "Building C object CMakeFiles/pcapcie.dir/src/backend_xgig.c.o"
 	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -MD -MT CMakeFiles/pcapcie.dir/src/backend_xgig.c.o -MF CMakeFiles/pcapcie.dir/src/backend_xgig.c.o.d -o CMakeFiles/pcapcie.dir/src/backend_xgig.c.o -c /home/khadem/libpcapcie/src/backend_xgig.c
 
 CMakeFiles/pcapcie.dir/src/backend_xgig.c.i: cmake_force
@@ -173,7 +187,7 @@ CMakeFiles/pcapcie.dir/src/backend_xgig.c.s: cmake_force
 CMakeFiles/pcapcie.dir/src/backend_pci.c.o: CMakeFiles/pcapcie.dir/flags.make
 CMakeFiles/pcapcie.dir/src/backend_pci.c.o: /home/khadem/libpcapcie/src/backend_pci.c
 CMakeFiles/pcapcie.dir/src/backend_pci.c.o: CMakeFiles/pcapcie.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/khadem/libpcapcie/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_8) "Building C object CMakeFiles/pcapcie.dir/src/backend_pci.c.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/khadem/libpcapcie/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_9) "Building C object CMakeFiles/pcapcie.dir/src/backend_pci.c.o"
 	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -MD -MT CMakeFiles/pcapcie.dir/src/backend_pci.c.o -MF CMakeFiles/pcapcie.dir/src/backend_pci.c.o.d -o CMakeFiles/pcapcie.dir/src/backend_pci.c.o -c /home/khadem/libpcapcie/src/backend_pci.c
 
 CMakeFiles/pcapcie.dir/src/backend_pci.c.i: cmake_force
@@ -189,6 +203,7 @@ pcapcie_OBJECTS = \
 "CMakeFiles/pcapcie.dir/src/pcapcie.c.o" \
 "CMakeFiles/pcapcie.dir/src/tlp.c.o" \
 "CMakeFiles/pcapcie.dir/src/filter.c.o" \
+"CMakeFiles/pcapcie.dir/src/pcie_topology.c.o" \
 "CMakeFiles/pcapcie.dir/src/backend_dummy.c.o" \
 "CMakeFiles/pcapcie.dir/src/backend_fpga.c.o" \
 "CMakeFiles/pcapcie.dir/src/backend_armds.c.o" \
@@ -201,6 +216,7 @@ pcapcie_EXTERNAL_OBJECTS =
 libpcapcie.a: CMakeFiles/pcapcie.dir/src/pcapcie.c.o
 libpcapcie.a: CMakeFiles/pcapcie.dir/src/tlp.c.o
 libpcapcie.a: CMakeFiles/pcapcie.dir/src/filter.c.o
+libpcapcie.a: CMakeFiles/pcapcie.dir/src/pcie_topology.c.o
 libpcapcie.a: CMakeFiles/pcapcie.dir/src/backend_dummy.c.o
 libpcapcie.a: CMakeFiles/pcapcie.dir/src/backend_fpga.c.o
 libpcapcie.a: CMakeFiles/pcapcie.dir/src/backend_armds.c.o
@@ -208,7 +224,7 @@ libpcapcie.a: CMakeFiles/pcapcie.dir/src/backend_xgig.c.o
 libpcapcie.a: CMakeFiles/pcapcie.dir/src/backend_pci.c.o
 libpcapcie.a: CMakeFiles/pcapcie.dir/build.make
 libpcapcie.a: CMakeFiles/pcapcie.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/khadem/libpcapcie/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_9) "Linking C static library libpcapcie.a"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/khadem/libpcapcie/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_10) "Linking C static library libpcapcie.a"
 	$(CMAKE_COMMAND) -P CMakeFiles/pcapcie.dir/cmake_clean_target.cmake
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/pcapcie.dir/link.txt --verbose=$(VERBOSE)
 
