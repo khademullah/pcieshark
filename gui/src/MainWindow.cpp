@@ -569,12 +569,15 @@ MainWindow::MainWindow(QWidget *parent)
     backendFilter->addItem("fpga");
     backendFilter->addItem("armds");
     backendFilter->addItem("xgig");
-    backendFilter->setCurrentText("golden");
+    backendFilter->setCurrentText("pci");
+    backendFilter->hide();
 
-    deviceIdBox->setPlaceholderText("PCI device (default: 0000:00:03.0)");
+    deviceIdBox->setPlaceholderText("0000:00:03.0");
     deviceIdBox->setText("0000:00:03.0");
-    scenarioBox->setPlaceholderText("Golden profile: gen8x16, latency=250ns, tps=250000");
+    deviceIdBox->hide();
+    scenarioBox->setPlaceholderText("gen8x16, latency=250ns, tps=250000");
     scenarioBox->setText("gen8x16,latency=250ns,tps=250000,burst=16,jitter=50ns");
+    scenarioBox->hide();
     searchBox->setPlaceholderText("Filter by requester ID or address");
 
     toolbar->addWidget(openButton);
@@ -584,12 +587,6 @@ MainWindow::MainWindow(QWidget *parent)
     toolbar->addWidget(themeButton);
     toolbar->addStretch();
 
-    filterbar->addWidget(new QLabel("Backend:", this));
-    filterbar->addWidget(backendFilter);
-    filterbar->addWidget(new QLabel("Device:", this));
-    filterbar->addWidget(deviceIdBox);
-    filterbar->addWidget(new QLabel("Scenario:", this));
-    filterbar->addWidget(scenarioBox);
     filterbar->addWidget(new QLabel("Type:", this));
     filterbar->addWidget(typeFilter);
     filterbar->addWidget(new QLabel("Direction:", this));
@@ -1396,7 +1393,7 @@ QString MainWindow::findRepoPath(const QStringList &relativeCandidates) const
 
 QString MainWindow::repoRootPath() const
 {
-    const QString script = findRepoPath({"scripts/run_zephyr_ai_topology.sh", "config/ai_golden_topology.json"});
+    const QString script = findRepoPath({"scripts/run_zephyr_ai_topology.sh"});
     if (script.isEmpty()) {
         return QDir::currentPath();
     }
@@ -1414,7 +1411,7 @@ QString MainWindow::resolveZephyrScript() const
 
 QStringList MainWindow::listConfigTopologyFiles() const
 {
-    const QString configDir = findRepoPath({"config/ai_golden_topology.json", "config"});
+    const QString configDir = findRepoPath({"config"});
     QDir dir;
     if (configDir.endsWith(QLatin1String(".json"))) {
         dir = QFileInfo(configDir).absoluteDir();
@@ -1444,11 +1441,8 @@ QString MainWindow::topologyTraceFileName() const
 QString MainWindow::activeTopologyJsonPath(const QString &workDir)
 {
     if (topologyRunMode == TopologyRunMode::ZephyrGolden) {
-        const QString golden = findRepoPath({"config/ai_golden_topology.json"});
-        if (!golden.isEmpty()) {
-            currentTopologyJsonPath = golden;
-            return golden;
-        }
+        currentTopologyJsonPath.clear();
+        return QString();
     }
     if (topologyRunMode == TopologyRunMode::JsonFile && !currentTopologyJsonPath.isEmpty()
         && QFileInfo::exists(currentTopologyJsonPath)) {
@@ -1479,12 +1473,9 @@ void MainWindow::updateTopologySourceUi()
     if (topologyRunMode == TopologyRunMode::ZephyrGolden) {
         badge = QStringLiteral("Zephyr golden fabric");
         detail = name;
-    } else if (topologyRunMode == TopologyRunMode::JsonFile) {
-        const QString fileName = currentTopologyJsonPath.isEmpty()
-            ? QStringLiteral("no topology selected")
-            : QFileInfo(currentTopologyJsonPath).completeBaseName();
+    } else     if (topologyRunMode == TopologyRunMode::JsonFile) {
         badge = QStringLiteral("Custom topology");
-        detail = QStringLiteral("%1  ·  %2").arg(fileName, name);
+        detail = name;
     } else {
         badge = QStringLiteral("Generated topology");
         detail = name;
@@ -1501,9 +1492,7 @@ void MainWindow::updateTopologySourceUi()
         if (topologyRunMode == TopologyRunMode::ZephyrGolden) {
             runTopologyButton->setText("Run Zephyr golden");
         } else if (topologyRunMode == TopologyRunMode::JsonFile) {
-            const QString fileName = QFileInfo(currentTopologyJsonPath).fileName();
-            runTopologyButton->setText(fileName.isEmpty() ? QStringLiteral("Run JSON topology")
-                                                          : QString("Run JSON: %1").arg(fileName));
+            runTopologyButton->setText("Run custom topology");
         } else {
             runTopologyButton->setText("Run generated topology");
         }
@@ -1511,6 +1500,68 @@ void MainWindow::updateTopologySourceUi()
     if (topologyFileCombo) {
         topologyFileCombo->setEnabled(topologyRunMode == TopologyRunMode::JsonFile);
     }
+}
+
+QJsonObject MainWindow::goldenTopologyObject() const
+{
+    QJsonObject rp1{{"id", "rp1"}, {"bdf", "00:01.0"}, {"addr", "01.0"}, {"label", "Compute Hub 1"}, {"secondary_bus", "01"}};
+    QJsonObject rp2{{"id", "rp2"}, {"bdf", "00:01.1"}, {"addr", "01.1"}, {"label", "Compute Hub 2"}, {"secondary_bus", "07"}};
+    QJsonObject rp3{{"id", "rp3"}, {"bdf", "00:01.2"}, {"addr", "01.2"}, {"label", "Storage Array 1"}, {"secondary_bus", "13"}};
+    QJsonObject rp4{{"id", "rp4"}, {"bdf", "00:01.3"}, {"addr", "01.3"}, {"label", "Storage Array 2"}, {"secondary_bus", "19"}};
+
+    QJsonObject rc;
+    rc.insert("domain", "0000");
+    rc.insert("root_bus", "00");
+    rc.insert("label", "CPU Complex");
+    rc.insert("root_ports", QJsonArray{rp1, rp2, rp3, rp4});
+
+    auto makeSwitch = [](const char *name, const char *parent, const char *up, const char *dp0, const char *dp1) {
+        QJsonObject sw;
+        sw.insert("name", name);
+        sw.insert("parent", parent);
+        sw.insert("upstream_port", up);
+        sw.insert("downstream_ports", QJsonArray{dp0, dp1});
+        sw.insert("p2p_allowed", true);
+        return sw;
+    };
+
+    auto makeEp = [](const char *bdf, const char *type, const char *label, const char *display,
+                     const char *parent, const char *serial = nullptr, int peer = 0) {
+        QJsonObject ep;
+        ep.insert("bdf", bdf);
+        ep.insert("type", type);
+        ep.insert("label", label);
+        ep.insert("display", display);
+        ep.insert("parent", parent);
+        if (serial) {
+            ep.insert("serial", serial);
+        }
+        if (peer > 0) {
+            ep.insert("peer_group", peer);
+        }
+        return ep;
+    };
+
+    QJsonObject topo;
+    topo.insert("topology_name", "AI golden topology");
+    topo.insert("root_complexes", QJsonArray{rc});
+    topo.insert("switches", QJsonArray{
+        makeSwitch("switch0", "rp1", "01:00.0", "02:00.0", "02:01.0"),
+        makeSwitch("switch1", "rp2", "07:00.0", "08:00.0", "08:01.0"),
+        makeSwitch("switch2", "rp3", "13:00.0", "14:00.0", "14:01.0"),
+        makeSwitch("switch3", "rp4", "19:00.0", "20:00.0", "20:01.0"),
+    });
+    topo.insert("endpoints", QJsonArray{
+        makeEp("03:00.0", "GPU_ACCEL", "ai1", "GPU 1", "switch0_dp0", "AI_ACCEL_01", 1),
+        makeEp("05:00.0", "GPU_ACCEL", "ai2", "GPU 2", "switch0_dp1", "AI_ACCEL_02", 1),
+        makeEp("09:00.0", "GPU_ACCEL", "ai3", "GPU 3", "switch1_dp0", "AI_ACCEL_03", 2),
+        makeEp("0b:00.0", "GPU_ACCEL", "ai4", "GPU 4", "switch1_dp1", "AI_ACCEL_04", 2),
+        makeEp("15:00.0", "NVME", "nvme1", "NVMe 1", "switch2_dp0", "DATA_POOL_01"),
+        makeEp("17:00.0", "NVME", "nvme2", "NVMe 2", "switch2_dp1", "DATA_POOL_02"),
+        makeEp("21:00.0", "NIC_SMART", "eth1", "SmartNIC", "switch3_dp0"),
+        makeEp("23:00.0", "NIC_SMART", "eth2", "SmartNIC", "switch3_dp1"),
+    });
+    return topo;
 }
 
 QJsonObject MainWindow::generateTopologyFromCounts(int rootPorts, int endpointsPerRoot) const
@@ -1662,30 +1713,52 @@ void MainWindow::injectFabricEnumerationPackets()
 
 void MainWindow::enumeratePciDevice()
 {
-    QString backend = backendFilter->currentText();
-    const QString deviceId = deviceIdBox->text().trimmed();
-    const QString scenario = scenarioBox->text().trimmed();
+    QDialog dlg(this);
+    dlg.setWindowTitle("Enumerate PCI");
+    dlg.resize(420, 160);
 
-    if (!deviceId.isEmpty() && backend == "pci") {
+    auto *form = new QFormLayout(&dlg);
+    form->setLabelAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    form->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
+
+    auto *backend = new QComboBox(&dlg);
+    for (int i = 0; i < backendFilter->count(); ++i) {
+        backend->addItem(backendFilter->itemText(i));
+    }
+    backend->setCurrentText(backendFilter->currentText());
+
+    auto *device = new QLineEdit(deviceIdBox->text(), &dlg);
+    device->setPlaceholderText("0000:00:03.0");
+
+    form->addRow("Backend", backend);
+    form->addRow("Device", device);
+
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
+    buttons->button(QDialogButtonBox::Ok)->setText("Enumerate");
+    form->addRow(buttons);
+    QObject::connect(buttons, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
+    QObject::connect(buttons, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
+
+    if (dlg.exec() != QDialog::Accepted) {
+        return;
+    }
+
+    backendFilter->setCurrentText(backend->currentText());
+    deviceIdBox->setText(device->text());
+
+    QString backendName = backendFilter->currentText();
+    const QString deviceId = deviceIdBox->text().trimmed();
+
+    if (!deviceId.isEmpty() && backendName == "pci") {
         setenv("PCIE_PCI_DEVICE", deviceId.toLocal8Bit().constData(), 1);
     } else {
         unsetenv("PCIE_PCI_DEVICE");
     }
 
-    if (backend == "dummy" || backend == "golden") {
-        if (!scenario.isEmpty()) {
-            setenv("PCIE_DUMMY_SCENARIO", scenario.toLocal8Bit().constData(), 1);
-            setenv("PCIE_DUMMY_PROFILE", scenario.toLocal8Bit().constData(), 1);
-        } else {
-            unsetenv("PCIE_DUMMY_SCENARIO");
-            unsetenv("PCIE_DUMMY_PROFILE");
-        }
-    } else {
-        unsetenv("PCIE_DUMMY_SCENARIO");
-        unsetenv("PCIE_DUMMY_PROFILE");
-    }
+    unsetenv("PCIE_DUMMY_SCENARIO");
+    unsetenv("PCIE_DUMMY_PROFILE");
 
-    pcie_ctx_t *ctx = pcie_open(backend.toLocal8Bit().constData());
+    pcie_ctx_t *ctx = pcie_open(backendName.toLocal8Bit().constData());
     if (!ctx) {
         QMessageBox::warning(this, "PCI enumeration failed",
                              "Unable to open the selected backend. Make sure the backend exists and the device is accessible.");
@@ -1960,11 +2033,9 @@ void MainWindow::openAiPerfDialog()
 
         topologyModeCombo = new QComboBox(sourceBox);
         topologyModeCombo->addItem("Zephyr golden runner", static_cast<int>(TopologyRunMode::ZephyrGolden));
-        topologyModeCombo->addItem("JSON topology file", static_cast<int>(TopologyRunMode::JsonFile));
         topologyModeCombo->addItem("Generated from fields", static_cast<int>(TopologyRunMode::Generated));
 
-        topologyFileCombo = new QComboBox(sourceBox);
-        QPushButton *browseJsonButton = new QPushButton("Browse JSON...", sourceBox);
+        topologyFileCombo = nullptr;
         QPushButton *generateTopoButton = new QPushButton("Generate from fields", sourceBox);
 
         topologySourceBadge = new QLabel(sourceBox);
@@ -1977,13 +2048,9 @@ void MainWindow::openAiPerfDialog()
 
         sourceLayout->addWidget(new QLabel("Run mode", sourceBox), 0, 0);
         sourceLayout->addWidget(topologyModeCombo, 0, 1);
-        sourceLayout->addWidget(new QLabel("JSON file", sourceBox), 0, 2);
-        sourceLayout->addWidget(topologyFileCombo, 0, 3);
-        sourceLayout->addWidget(browseJsonButton, 0, 4);
-        sourceLayout->addWidget(generateTopoButton, 0, 5);
-        sourceLayout->addWidget(topologySourceBadge, 1, 0, 1, 6);
+        sourceLayout->addWidget(generateTopoButton, 0, 2);
+        sourceLayout->addWidget(topologySourceBadge, 1, 0, 1, 3);
         sourceLayout->setColumnStretch(1, 1);
-        sourceLayout->setColumnStretch(3, 1);
 
         QTextBrowser *topologyView = new QTextBrowser(aiEmulatorDialog);
         topologyView->setOpenExternalLinks(false);
@@ -2089,36 +2156,12 @@ void MainWindow::openAiPerfDialog()
         mainLayout->addWidget(aiPerformanceReadout, 0);
         mainLayout->addWidget(actionButtons, 0);
 
-        auto fillJsonCombo = [this](const QString &selectPath) {
-            const QString previous = selectPath.isEmpty() ? topologyFileCombo->currentData().toString()
-                                                          : selectPath;
-            topologyFileCombo->blockSignals(true);
-            topologyFileCombo->clear();
-            const QStringList files = listConfigTopologyFiles();
-            for (const QString &path : files) {
-                topologyFileCombo->addItem(QFileInfo(path).fileName(), path);
-            }
-            int idx = topologyFileCombo->findData(previous);
-            if (idx < 0 && !previous.isEmpty() && QFileInfo::exists(previous)) {
-                topologyFileCombo->addItem(QFileInfo(previous).fileName(), previous);
-                idx = topologyFileCombo->findData(previous);
-            }
-            if (idx >= 0) {
-                topologyFileCombo->setCurrentIndex(idx);
-            }
-            topologyFileCombo->blockSignals(false);
-        };
-
-        auto loadGolden = [this, fillJsonCombo]() {
-            QString error;
-            const QString golden = findRepoPath({"config/ai_golden_topology.json"});
-            if (!golden.isEmpty() && loadTopologyFile(golden, &error)) {
-                topologyRunMode = TopologyRunMode::ZephyrGolden;
-                fillJsonCombo(golden);
-                renderCurrentTopology();
-                return true;
-            }
-            return false;
+        auto loadGolden = [this]() {
+            topologyRunMode = TopologyRunMode::ZephyrGolden;
+            currentTopology = goldenTopologyObject();
+            currentTopologyJsonPath.clear();
+            renderCurrentTopology();
+            return true;
         };
 
         auto applyWorkload = [rootPorts, endpointPerRoot, buses, iterations, latencyNs, tps, burstSize, jitterNs, dropRate](int index) {
@@ -2161,19 +2204,10 @@ void MainWindow::openAiPerfDialog()
             }
         };
 
-        auto applyMode = [this, fillJsonCombo, loadGolden, rootPorts, endpointPerRoot](int index) {
+        auto applyMode = [this, loadGolden, rootPorts, endpointPerRoot](int index) {
             topologyRunMode = static_cast<TopologyRunMode>(topologyModeCombo->itemData(index).toInt());
             if (topologyRunMode == TopologyRunMode::ZephyrGolden) {
                 loadGolden();
-            } else if (topologyRunMode == TopologyRunMode::JsonFile) {
-                fillJsonCombo(currentTopologyJsonPath);
-                const QString path = topologyFileCombo->currentData().toString();
-                QString error;
-                if (!path.isEmpty() && loadTopologyFile(path, &error)) {
-                    renderCurrentTopology();
-                } else {
-                    updateTopologySourceUi();
-                }
             } else {
                 currentTopology = generateTopologyFromCounts(rootPorts->value(), endpointPerRoot->value());
                 currentTopologyJsonPath.clear();
@@ -2182,45 +2216,10 @@ void MainWindow::openAiPerfDialog()
             updateTopologySourceUi();
         };
 
-        fillJsonCombo(findRepoPath({"config/ai_golden_topology.json"}));
         connect(topologyModeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), applyMode);
-        connect(topologyFileCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) {
-            if (topologyRunMode != TopologyRunMode::JsonFile) {
-                return;
-            }
-            const QString path = topologyFileCombo->currentData().toString();
-            QString error;
-            if (!path.isEmpty() && loadTopologyFile(path, &error)) {
-                renderCurrentTopology();
-                statusLabel->setText(QString("Custom topology ready: %1")
-                                         .arg(currentTopology.value("topology_name").toString()));
-            }
-        });
-        connect(browseJsonButton, &QPushButton::clicked, this, [this, fillJsonCombo]() {
-            const QString startDir = findRepoPath({"config/ai_golden_topology.json"});
-            const QString path = QFileDialog::getOpenFileName(
-                this,
-                "Load PCIe topology JSON",
-                startDir.isEmpty() ? QDir::currentPath() : QFileInfo(startDir).absolutePath(),
-                "Topology JSON (*.json);;All files (*)");
-            if (path.isEmpty()) {
-                return;
-            }
-            QString error;
-            if (!loadTopologyFile(path, &error)) {
-                QMessageBox::warning(this, "Invalid topology", error);
-                return;
-            }
-            topologyRunMode = TopologyRunMode::JsonFile;
-            topologyModeCombo->setCurrentIndex(1);
-            fillJsonCombo(path);
-            renderCurrentTopology();
-            statusLabel->setText(QString("Loaded custom topology: %1")
-                                     .arg(currentTopology.value("topology_name").toString()));
-        });
         connect(generateTopoButton, &QPushButton::clicked, this, [this, rootPorts, endpointPerRoot]() {
             topologyRunMode = TopologyRunMode::Generated;
-            topologyModeCombo->setCurrentIndex(2);
+            topologyModeCombo->setCurrentIndex(1);
             currentTopology = generateTopologyFromCounts(rootPorts->value(), endpointPerRoot->value());
             currentTopologyJsonPath.clear();
             renderCurrentTopology();
@@ -2247,7 +2246,7 @@ void MainWindow::openAiPerfDialog()
             const QString topoPath = activeTopologyJsonPath(workingDir);
             const QString traceLog = QDir(workingDir).filePath(topologyTraceFileName());
             statusLabel->setText(QString("Starting %1  ·  %2")
-                                     .arg(topologyModeTitle(), QFileInfo(topoPath).fileName()));
+                                     .arg(topologyModeTitle(), currentTopology.value("topology_name").toString()));
 
             liveTraceSeen.clear();
             liveTracePath = traceLog;
@@ -2270,7 +2269,9 @@ void MainWindow::openAiPerfDialog()
             liveTraceProcess->setArguments({resolvedScript});
             liveTraceProcess->setProcessChannelMode(QProcess::MergedChannels);
             QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-            env.insert("TOPOLOGY_JSON", topoPath);
+            if (!topoPath.isEmpty()) {
+                env.insert("TOPOLOGY_JSON", topoPath);
+            }
             env.insert("TRACE_LOG", traceLog);
             env.insert("PCIE_HEADLESS", "1");
             env.insert("TOPOLOGY_MODE", topologyRunMode == TopologyRunMode::ZephyrGolden
@@ -2364,7 +2365,10 @@ void MainWindow::openAiPerfDialog()
             env.insert("PCIE_LS_CAPTURE", "1");
             env.insert("PCIE_LS_LOG", pcieLsLog);
             env.insert("RUN_TIMEOUT_SECONDS", "15");
-            env.insert("TOPOLOGY_JSON", activeTopologyJsonPath(workingDir));
+            const QString lsTopo = activeTopologyJsonPath(workingDir);
+            if (!lsTopo.isEmpty()) {
+                env.insert("TOPOLOGY_JSON", lsTopo);
+            }
             env.insert("TOPOLOGY_MODE", topologyRunMode == TopologyRunMode::ZephyrGolden
                                             ? QStringLiteral("zephyr-golden")
                                             : QStringLiteral("json-file"));

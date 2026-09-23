@@ -55,7 +55,6 @@ PCIe bring-up usually needs a mix of raw trace inspection, config-space enumerat
 - `include/pcie_topology.h` — topology model used by the emulator
 - `examples/` — CLI tools for TLP, link, capture, and topology flows
 - `gui/` — Qt desktop application
-- `config/` — topology JSON presets
 - `scripts/` — QEMU/Zephyr helpers
 - `pcieshark/` — product notes for the CLI and GUI front-end
 - `docs/assets/` — project artwork
@@ -164,7 +163,7 @@ Typical fabric:
 
 ### Golden AI topology
 
-The default preset is a deterministic fabric in `config/ai_golden_topology.json`:
+The default preset is a built-in deterministic fabric:
 
 - root bus: `PCIe Bus 00`
 - root ports: `rp1` … `rp4`
@@ -207,7 +206,7 @@ Default golden profile:
 ./scripts/run_zephyr_ai_topology.sh
 ```
 
-The script checks the Zephyr venv, source tree, SDK, QEMU binary, and kernel image, then starts the emulated topology. Override paths with `ZEPHYR_BASE`, `ZEPHYR_SDK_INSTALL_DIR`, `KERNEL_PATH`, and `TOPOLOGY_JSON` as needed.
+The script checks the Zephyr venv, source tree, SDK, QEMU binary, and kernel image, then starts the emulated topology. Override paths with `ZEPHYR_BASE`, `ZEPHYR_SDK_INSTALL_DIR`, and `KERNEL_PATH` as needed.
 
 ## PCI backend notes
 

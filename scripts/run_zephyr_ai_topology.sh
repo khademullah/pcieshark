@@ -12,28 +12,20 @@ QEMU_CONSOLE_PORT="${QEMU_CONSOLE_PORT:-4444}"
 RUN_TIMEOUT_SECONDS="${RUN_TIMEOUT_SECONDS:-0}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-GOLDEN_JSON="${GOLDEN_JSON:-${REPO_ROOT}/config/ai_golden_topology.json}"
-TOPOLOGY_JSON="${TOPOLOGY_JSON:-${GOLDEN_JSON}}"
+TOPOLOGY_JSON="${TOPOLOGY_JSON:-}"
 GEN_QEMU_ARGS="${GEN_QEMU_ARGS:-${SCRIPT_DIR}/gen_qemu_args.py}"
 TRACE_LOG_DEFAULT="${PWD}/zephyr_ai_topology_trace.log"
+TOPO_STEM="golden"
 
-topology_realpath() {
-    if command -v realpath >/dev/null 2>&1; then
-        realpath -m "$1"
-    else
-        python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$1"
-    fi
-}
-
-GOLDEN_REAL="$(topology_realpath "$GOLDEN_JSON")"
-TOPO_REAL="$(topology_realpath "$TOPOLOGY_JSON")"
-TOPO_STEM="$(basename "$TOPOLOGY_JSON" .json)"
-
-if [[ -z "${TOPOLOGY_MODE:-}" ]]; then
-    if [[ "$TOPO_REAL" == "$GOLDEN_REAL" ]]; then
-        TOPOLOGY_MODE="zephyr-golden"
-    else
+if [[ -n "$TOPOLOGY_JSON" && -f "$TOPOLOGY_JSON" ]]; then
+    TOPO_STEM="$(basename "$TOPOLOGY_JSON" .json)"
+    if [[ -z "${TOPOLOGY_MODE:-}" ]]; then
         TOPOLOGY_MODE="json-file"
+    fi
+else
+    TOPOLOGY_JSON=""
+    if [[ -z "${TOPOLOGY_MODE:-}" ]]; then
+        TOPOLOGY_MODE="zephyr-golden"
     fi
 fi
 
@@ -66,8 +58,7 @@ fi
 printf '========================================\n'
 if [[ "$TOPOLOGY_MODE" == "zephyr-golden" ]]; then
     printf ' Mode    : Zephyr golden runner\n'
-    printf ' Launcher: %s\n' "$0"
-    printf ' Fabric  : %s\n' "$TOPOLOGY_JSON"
+    printf ' Fabric  : built-in golden topology\n'
 else
     printf ' Mode    : Custom JSON topology\n'
     printf ' File    : %s\n' "$TOPOLOGY_JSON"
@@ -121,7 +112,11 @@ printf 'Using ZEPHYR_BASE=%s\n' "$ZEPHYR_BASE"
 printf 'Using ZEPHYR_SDK_INSTALL_DIR=%s\n' "$ZEPHYR_SDK_INSTALL_DIR"
 printf 'Using QEMU=%s\n' "$QEMU_BIN"
 printf 'Using KERNEL=%s\n' "$KERNEL_PATH"
-printf 'Topology JSON: %s\n' "$TOPOLOGY_JSON"
+if [[ -n "$TOPOLOGY_JSON" ]]; then
+  printf 'Topology file: %s\n' "$TOPOLOGY_JSON"
+else
+  printf 'Topology: built-in golden fabric\n'
+fi
 printf 'Trace log: %s\n' "$TRACE_LOG"
 printf 'pcie ls log: %s\n' "$PCIE_LS_LOG"
 printf 'pcie ls capture: %s\n' "$PCIE_LS_CAPTURE"

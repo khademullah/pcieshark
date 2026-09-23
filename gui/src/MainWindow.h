@@ -112,6 +112,7 @@ private:
     QString activeTopologyJsonPath(const QString &workDir);
     QString topologyModeTitle() const;
     void updateTopologySourceUi();
+    QJsonObject goldenTopologyObject() const;
     QJsonObject generateTopologyFromCounts(int rootPorts, int endpointsPerRoot) const;
     bool loadTopologyFile(const QString &path, QString *error);
     QString materializeCurrentTopology(const QString &workDir);
