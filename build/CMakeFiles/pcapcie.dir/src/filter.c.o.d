@@ -1,7 +1,7 @@
 CMakeFiles/pcapcie.dir/src/filter.c.o: \
- /home/khadem/libpcapcie/src/filter.c /usr/include/stdc-predef.h \
- /home/khadem/libpcapcie/include/pcapcie/filter.h \
- /home/khadem/libpcapcie/include/pcapcie/tlp.h \
+ /home/khadem/pcieshark/src/filter.c /usr/include/stdc-predef.h \
+ /home/khadem/pcieshark/include/pcapcie/filter.h \
+ /home/khadem/pcieshark/include/pcapcie/tlp.h \
  /usr/lib/gcc/x86_64-linux-gnu/15/include/stdint.h /usr/include/stdint.h \
  /usr/include/x86_64-linux-gnu/bits/libc-header-start.h \
  /usr/include/features.h /usr/include/features-time64.h \

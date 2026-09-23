@@ -28,6 +28,13 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QTextBrowser>
+#include <QGroupBox>
+
+enum class TopologyRunMode {
+    ZephyrGolden,
+    JsonFile,
+    Generated
+};
 
 class MainWindow : public QMainWindow
 {
@@ -85,6 +92,11 @@ private:
     QJsonObject currentTopology;
     QTextBrowser *aiTopologyView;
     QLabel *aiTopologyPathLabel;
+    QLabel *topologySourceBadge;
+    QComboBox *topologyModeCombo;
+    QComboBox *topologyFileCombo;
+    QPushButton *runTopologyButton;
+    TopologyRunMode topologyRunMode;
     QSet<QString> liveTraceSeen;
     int currentAiPerformanceTargetTps = 0;
     int currentAiPerformanceTargetLatencyNs = 0;
@@ -93,6 +105,13 @@ private:
     void applyTheme();
     void colorRows();
     QString findRepoPath(const QStringList &relativeCandidates) const;
+    QString repoRootPath() const;
+    QString resolveZephyrScript() const;
+    QStringList listConfigTopologyFiles() const;
+    QString topologyTraceFileName() const;
+    QString activeTopologyJsonPath(const QString &workDir);
+    QString topologyModeTitle() const;
+    void updateTopologySourceUi();
     QJsonObject generateTopologyFromCounts(int rootPorts, int endpointsPerRoot) const;
     bool loadTopologyFile(const QString &path, QString *error);
     QString materializeCurrentTopology(const QString &workDir);

@@ -38,6 +38,12 @@ def as_root_port(raw, index: int) -> dict:
     return rp
 
 
+def add_opt(args: List[str], flag: str, value: str) -> None:
+    """Append a QEMU option as two argv tokens so mapfile/QProcess keep them split."""
+    args.append(flag)
+    args.append(value)
+
+
 def qemu_device_for_endpoint(ep: dict, netdev_id: Optional[str]) -> str:
     ep_type = str(ep.get("type", "")).upper()
     label = ep.get("label") or ep.get("display") or "ep"
@@ -46,10 +52,10 @@ def qemu_device_for_endpoint(ep: dict, netdev_id: Optional[str]) -> str:
     if any(tok in ep_type for tok in ("NIC", "ETH", "NET", "SMARTNIC")):
         if not netdev_id:
             raise RuntimeError(f"NIC endpoint {label} has no netdev")
-        return f"-device e1000e,id={label},netdev={netdev_id},bus={parent},addr=00.0"
+        return f"e1000e,id={label},netdev={netdev_id},bus={parent},addr=00.0"
     if "VIRTIO" in ep_type:
-        return f"-device virtio-net-pci,id={label},bus={parent},addr=00.0"
-    return f"-device nvme,id={label},bus={parent},addr=00.0,serial={serial}"
+        return f"virtio-net-pci,id={label},bus={parent},addr=00.0"
+    return f"nvme,id={label},bus={parent},addr=00.0,serial={serial}"
 
 
 def generate_args(data: dict) -> List[str]:
@@ -65,9 +71,11 @@ def generate_args(data: dict) -> List[str]:
             rp_id = rp["id"]
             rp_ids.append(rp_id)
             mf = ",multifunction=on" if idx == 0 else ""
-            args.append(
-                f"-device pcie-root-port,id={rp_id},bus=pcie.0,chassis={chassis},"
-                f"slot={idx + 1},addr={rp['addr']}{mf}"
+            add_opt(
+                args,
+                "-device",
+                f"pcie-root-port,id={rp_id},bus=pcie.0,chassis={chassis},"
+                f"slot={idx + 1},addr={rp['addr']}{mf}",
             )
             chassis += 1
 
@@ -76,14 +84,16 @@ def generate_args(data: dict) -> List[str]:
         name = sw.get("name") or f"switch{idx}"
         parent = sw.get("parent") or (rp_ids[idx] if idx < len(rp_ids) else (rp_ids[0] if rp_ids else "pcie.0"))
         up_id = name if name.endswith("_up") else f"{name}_up"
-        args.append(f"-device x3130-upstream,id={up_id},bus={parent},addr=00.0")
+        add_opt(args, "-device", f"x3130-upstream,id={up_id},bus={parent},addr=00.0")
         dports = sw.get("downstream_ports", [])
         for d_idx, _dp in enumerate(dports):
             dp_id = f"{name}_dp{d_idx}"
             mf = ",multifunction=on" if d_idx == 0 else ""
-            args.append(
-                f"-device xio3130-downstream,id={dp_id},bus={up_id},chassis={chassis},"
-                f"slot={d_idx},addr=00.{d_idx}{mf}"
+            add_opt(
+                args,
+                "-device",
+                f"xio3130-downstream,id={dp_id},bus={up_id},chassis={chassis},"
+                f"slot={d_idx},addr=00.{d_idx}{mf}",
             )
             chassis += 1
             slot_ids.append(dp_id)
@@ -105,8 +115,8 @@ def generate_args(data: dict) -> List[str]:
         if any(tok in ep_type for tok in ("NIC", "ETH", "NET", "SMARTNIC")):
             nic_count += 1
             netdev_id = f"net{nic_count}"
-            args.append(f"-netdev user,id={netdev_id}")
-        args.append(qemu_device_for_endpoint(ep, netdev_id))
+            add_opt(args, "-netdev", f"user,id={netdev_id}")
+        add_opt(args, "-device", qemu_device_for_endpoint(ep, netdev_id))
 
     return args
 

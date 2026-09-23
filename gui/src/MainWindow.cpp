@@ -18,6 +18,13 @@
 #include <QJsonObject>
 #include <QStandardPaths>
 #include <QTemporaryFile>
+#include <QGroupBox>
+#include <QGridLayout>
+#include <QSizePolicy>
+#include <QScreen>
+#include <QGuiApplication>
+#include <QApplication>
+#include <QScrollArea>
 
 #include <algorithm>
 
@@ -270,14 +277,15 @@ QStringList extractPcieLsEntries(const QString &path)
     return entries;
 }
 
-QString cellHtml(const QString &title, const QString &sub, const QString &body)
+QString cellHtml(const QString &title, const QString &sub, const QString &body, const QString &accent = QString())
 {
+    const QString border = accent.isEmpty() ? QStringLiteral("#64748b") : accent;
     return QStringLiteral(
-               "<td align='center' style='border:1px solid #b7bec9;padding:8px;vertical-align:top;'>"
-               "<div style='font-weight:bold;'>[%1]</div>"
-               "<div style='font-size:12px;opacity:0.9;'>%2</div>"
-               "<div>%3</div></td>")
-        .arg(title.toHtmlEscaped(), sub.toHtmlEscaped(), body.toHtmlEscaped());
+               "<td align='center' width='25%' style='border:1px solid %4;padding:10px 8px;vertical-align:top;min-width:140px;'>"
+               "<div style='font-weight:700;letter-spacing:0.2px;'>[%1]</div>"
+               "<div style='font-size:12px;opacity:0.85;margin-top:4px;'>%2</div>"
+               "<div style='margin-top:4px;'>%3</div></td>")
+        .arg(title.toHtmlEscaped(), sub.toHtmlEscaped(), body.toHtmlEscaped(), border);
 }
 
 QString tableRow(const QString &cells)
@@ -285,7 +293,102 @@ QString tableRow(const QString &cells)
     if (cells.isEmpty()) {
         return QString();
     }
-    return QStringLiteral("<table width='100%' style='border-spacing:8px 6px;'><tr>%1</tr></table>").arg(cells);
+    return QStringLiteral("<table width='100%' style='border-spacing:10px 8px;table-layout:fixed;'><tr>%1</tr></table>").arg(cells);
+}
+
+QString wrapCellRows(const QStringList &cells, int perRow = 4)
+{
+    if (cells.isEmpty()) {
+        return QString();
+    }
+    QString html;
+    for (int i = 0; i < cells.size(); i += perRow) {
+        QString row;
+        const int end = qMin(i + perRow, cells.size());
+        for (int j = i; j < end; ++j) {
+            row += cells.at(j);
+        }
+        html += tableRow(row);
+    }
+    return html;
+}
+
+QString endpointAccent(const QString &type)
+{
+    const QString t = type.toUpper();
+    if (t.contains(QLatin1String("GPU")) || t.contains(QLatin1String("ACCEL"))) {
+        return QStringLiteral("#3b82f6");
+    }
+    if (t.contains(QLatin1String("NVME")) || t.contains(QLatin1String("STOR"))) {
+        return QStringLiteral("#10b981");
+    }
+    if (t.contains(QLatin1String("NIC")) || t.contains(QLatin1String("ETH")) || t.contains(QLatin1String("NET"))) {
+        return QStringLiteral("#f59e0b");
+    }
+    return QStringLiteral("#64748b");
+}
+
+void fitToAvailableScreen(QWidget *widget, double scale = 1.0)
+{
+    if (!widget) {
+        return;
+    }
+
+    QScreen *screen = widget->screen();
+    if (!screen) {
+        if (QWidget *parent = widget->parentWidget()) {
+            screen = parent->screen();
+        }
+    }
+    if (!screen) {
+        screen = QGuiApplication::primaryScreen();
+    }
+    if (!screen) {
+        return;
+    }
+
+    const QRect avail = screen->availableGeometry();
+    const int margin = (scale >= 0.99) ? 0 : 16;
+    const int width = qBound(720, static_cast<int>(avail.width() * scale) - margin, avail.width() - margin);
+    const int height = qBound(520, static_cast<int>(avail.height() * scale) - margin, avail.height() - margin);
+    const int x = avail.x() + (avail.width() - width) / 2;
+    const int y = avail.y() + (avail.height() - height) / 2;
+    widget->setMaximumSize(avail.size());
+    widget->setGeometry(x, y, width, height);
+}
+
+uint8_t tlpCodeFromName(const QString &typeText)
+{
+    const QString t = typeText.trimmed();
+    if (t.compare(QLatin1String("MemRd"), Qt::CaseInsensitive) == 0
+        || t.compare(QLatin1String("MemRead"), Qt::CaseInsensitive) == 0
+        || t == QLatin1String("0")) {
+        return PCIE_TLP_MEM_READ;
+    }
+    if (t.compare(QLatin1String("MemWr"), Qt::CaseInsensitive) == 0
+        || t.compare(QLatin1String("MemWrite"), Qt::CaseInsensitive) == 0
+        || t == QLatin1String("1")) {
+        return PCIE_TLP_MEM_WRITE;
+    }
+    if (t.compare(QLatin1String("CfgRd"), Qt::CaseInsensitive) == 0
+        || t.compare(QLatin1String("CfgRead"), Qt::CaseInsensitive) == 0
+        || t == QLatin1String("4")) {
+        return PCIE_TLP_CFG_READ;
+    }
+    if (t.compare(QLatin1String("CfgWr"), Qt::CaseInsensitive) == 0
+        || t.compare(QLatin1String("CfgWrite"), Qt::CaseInsensitive) == 0
+        || t == QLatin1String("5")) {
+        return PCIE_TLP_CFG_WRITE;
+    }
+    if (t.compare(QLatin1String("Cpl"), Qt::CaseInsensitive) == 0
+        || t.compare(QLatin1String("Completion"), Qt::CaseInsensitive) == 0
+        || t == QLatin1String("10")
+        || t.compare(QLatin1String("0x0A"), Qt::CaseInsensitive) == 0) {
+        return PCIE_TLP_CPL;
+    }
+    bool ok = false;
+    const uint value = t.toUInt(&ok, 0);
+    return ok ? static_cast<uint8_t>(value) : static_cast<uint8_t>(PCIE_TLP_UNKNOWN);
 }
 
 QJsonObject defaultRootPort(int index)
@@ -309,10 +412,10 @@ QString buildTopologyHtmlFromJson(const QJsonObject &topo)
 
     QString rcLabel = QStringLiteral("CPU Complex");
     QString busLabel = QStringLiteral("PCIe Bus 00");
-    QString rpCells;
-    QString swCells;
-    QString dpCells;
-    QString epCells;
+    QStringList rpCells;
+    QStringList swCells;
+    QStringList dpCells;
+    QStringList epCells;
 
     for (const QJsonValue &rcv : rcs) {
         const QJsonObject rc = rcv.toObject();
@@ -341,7 +444,7 @@ QString buildTopologyHtmlFromJson(const QJsonObject &topo)
             if (!sec.isEmpty()) {
                 sub += QStringLiteral("  Bus ") + sec;
             }
-            rpCells += cellHtml(id, sub, label);
+            rpCells << cellHtml(id, sub, label, QStringLiteral("#60a5fa"));
         }
     }
 
@@ -350,15 +453,13 @@ QString buildTopologyHtmlFromJson(const QJsonObject &topo)
         const QString swName = sw.value("name").toString("switch");
         const QString up = sw.value("upstream_port").toString();
         const QString parent = sw.value("parent").toString();
-        swCells += cellHtml(swName + QStringLiteral("_up"), up, parent);
+        swCells << cellHtml(swName + QStringLiteral("_up"), up, parent, QStringLiteral("#94a3b8"));
         const QJsonArray dps = sw.value("downstream_ports").toArray();
         for (int d = 0; d < dps.size(); ++d) {
-            dpCells += QStringLiteral(
-                           "<td align='center' style='border:1px solid #9aa4b2;padding:6px;'>"
-                           "[%1 dp%2]<div style='font-size:12px;opacity:0.9;'>%3</div></td>")
-                           .arg(swName.toHtmlEscaped())
-                           .arg(d)
-                           .arg(dps.at(d).toString().toHtmlEscaped());
+            dpCells << cellHtml(QString("%1 dp%2").arg(swName).arg(d),
+                                dps.at(d).toString(),
+                                QStringLiteral("downstream"),
+                                QStringLiteral("#7dd3fc"));
         }
     }
 
@@ -368,26 +469,26 @@ QString buildTopologyHtmlFromJson(const QJsonObject &topo)
         const QString bdf = ep.value("bdf").toString();
         const QString label = ep.value("label").toString();
         const QString type = ep.value("type").toString();
-        epCells += cellHtml(display, bdf.isEmpty() ? type : bdf, label);
+        epCells << cellHtml(display, bdf.isEmpty() ? type : bdf, label, endpointAccent(type));
     }
 
     return QStringLiteral(
-               "<html><body style='background:#0f1117;color:#e7ebf3;font-family:monospace;'>"
-               "<div style='padding:8px;'>"
-               "<div style='text-align:center;font-weight:bold;font-size:18px;padding:8px;'>[ %1 ]</div>"
+               "<html><body style='background:#0f1117;color:#e7ebf3;font-family:\"Noto Sans Mono\",\"DejaVu Sans Mono\",monospace;'>"
+               "<div style='padding:10px;'>"
+               "<div style='text-align:center;font-weight:700;font-size:18px;padding:8px;'>[ %1 ]</div>"
                "<div style='text-align:center;font-size:14px;padding-bottom:4px;'>[ %2 ]</div>"
                "<div style='text-align:center;font-size:12px;opacity:0.85;padding-bottom:10px;'>%3</div>"
                "%4"
-               "<div style='border-top:2px solid #dfe5ee; margin:10px 0;'></div>"
+               "<div style='border-top:2px solid #334155; margin:12px 0;'></div>"
                "%5%6%7"
                "</div></body></html>")
         .arg(rcLabel.toHtmlEscaped(),
              busLabel.toHtmlEscaped(),
              name.toHtmlEscaped(),
-             tableRow(rpCells),
-             tableRow(swCells),
-             tableRow(dpCells),
-             tableRow(epCells));
+             wrapCellRows(rpCells, 4),
+             wrapCellRows(swCells, 4),
+             wrapCellRows(dpCells, 4),
+             wrapCellRows(epCells, 4));
 }
 
 void appendCfgReadRows(QStandardItemModel *model, const QString &bdf, const QString &role)
@@ -420,11 +521,17 @@ MainWindow::MainWindow(QWidget *parent)
     , liveTraceProcess(nullptr)
     , aiTopologyView(nullptr)
     , aiTopologyPathLabel(nullptr)
+    , topologySourceBadge(nullptr)
+    , topologyModeCombo(nullptr)
+    , topologyFileCombo(nullptr)
+    , runTopologyButton(nullptr)
+    , topologyRunMode(TopologyRunMode::ZephyrGolden)
     , suppressAiRunnerExitWarning(false)
 {
     QWidget *central = new QWidget(this);
     QVBoxLayout *layout = new QVBoxLayout(central);
     QHBoxLayout *toolbar = new QHBoxLayout();
+    QHBoxLayout *filterbar = new QHBoxLayout();
 
     darkMode = false;
 
@@ -475,17 +582,19 @@ MainWindow::MainWindow(QWidget *parent)
     toolbar->addWidget(enumerateButton);
     toolbar->addWidget(aiPerfButton);
     toolbar->addWidget(themeButton);
-    toolbar->addWidget(new QLabel("Backend:", this));
-    toolbar->addWidget(backendFilter);
-    toolbar->addWidget(new QLabel("Device:", this));
-    toolbar->addWidget(deviceIdBox);
-    toolbar->addWidget(new QLabel("Scenario:", this));
-    toolbar->addWidget(scenarioBox);
-    toolbar->addWidget(new QLabel("Type:", this));
-    toolbar->addWidget(typeFilter);
-    toolbar->addWidget(new QLabel("Direction:", this));
-    toolbar->addWidget(directionFilter);
-    toolbar->addWidget(searchBox);
+    toolbar->addStretch();
+
+    filterbar->addWidget(new QLabel("Backend:", this));
+    filterbar->addWidget(backendFilter);
+    filterbar->addWidget(new QLabel("Device:", this));
+    filterbar->addWidget(deviceIdBox);
+    filterbar->addWidget(new QLabel("Scenario:", this));
+    filterbar->addWidget(scenarioBox);
+    filterbar->addWidget(new QLabel("Type:", this));
+    filterbar->addWidget(typeFilter);
+    filterbar->addWidget(new QLabel("Direction:", this));
+    filterbar->addWidget(directionFilter);
+    filterbar->addWidget(searchBox, 1);
 
     QWidget *statsWidget = new QWidget(this);
     QHBoxLayout *statsLayout = new QHBoxLayout(statsWidget);
@@ -557,13 +666,14 @@ MainWindow::MainWindow(QWidget *parent)
     splitter->setStretchFactor(1, 1);
 
     layout->addLayout(toolbar);
+    layout->addLayout(filterbar);
     layout->addWidget(statsWidget);
     layout->addWidget(splitter);
     layout->addWidget(statusLabel);
 
     setCentralWidget(central);
     setWindowTitle("pcieshark");
-    resize(1100, 700);
+    fitToAvailableScreen(this, 1.0);
 
     applyTheme();
 
@@ -599,7 +709,8 @@ void MainWindow::applyTheme()
                 color: #e2e8f0;
             }
             QWidget {
-                font-family: "Segoe UI", "Noto Sans", sans-serif;
+                font-family: "Noto Sans", "DejaVu Sans", "Segoe UI", sans-serif;
+                letter-spacing: 0px;
                 color: #e2e8f0;
             }
             QVBoxLayout, QHBoxLayout {
@@ -709,6 +820,35 @@ void MainWindow::applyTheme()
                 font-weight: 600;
                 color: #e2e8f0;
             }
+            QDialog, QGroupBox {
+                background: #0f172a;
+                color: #e2e8f0;
+            }
+            QGroupBox {
+                border: 1px solid #334155;
+                border-radius: 8px;
+                margin-top: 12px;
+                padding: 12px 10px 10px 10px;
+                font-weight: 600;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 4px;
+            }
+            QTextBrowser {
+                background: #0b1220;
+                color: #e2e8f0;
+                border: 1px solid #334155;
+                border-radius: 6px;
+            }
+            QLabel#topologySourceBadge {
+                background: #1e3a5f;
+                border: 1px solid #3b82f6;
+                border-radius: 6px;
+                padding: 8px 10px;
+                color: #dbeafe;
+            }
         )");
         themeButton->setText("Light");
     } else {
@@ -718,7 +858,8 @@ void MainWindow::applyTheme()
                 color: #1f2328;
             }
             QWidget {
-                font-family: "Segoe UI", "Noto Sans", sans-serif;
+                font-family: "Noto Sans", "DejaVu Sans", "Segoe UI", sans-serif;
+                letter-spacing: 0px;
                 color: #1f2328;
             }
             QVBoxLayout, QHBoxLayout {
@@ -834,6 +975,35 @@ void MainWindow::applyTheme()
                 font-weight: 600;
                 color: #1f2328;
             }
+            QDialog, QGroupBox {
+                background: #f3f4f6;
+                color: #1f2328;
+            }
+            QGroupBox {
+                border: 1px solid #d0d7de;
+                border-radius: 8px;
+                margin-top: 12px;
+                padding: 12px 10px 10px 10px;
+                font-weight: 600;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 4px;
+            }
+            QTextBrowser {
+                background: #f8fafc;
+                color: #1f2328;
+                border: 1px solid #d0d7de;
+                border-radius: 6px;
+            }
+            QLabel#topologySourceBadge {
+                background: #eff6ff;
+                border: 1px solid #93c5fd;
+                border-radius: 6px;
+                padding: 8px 10px;
+                color: #1e3a8a;
+            }
         )");
         themeButton->setText("Dark");
     }
@@ -908,8 +1078,8 @@ void MainWindow::showPcieLsWindow(const QString &path)
     }
 
     pcieLsDialog = new QDialog(this);
-    pcieLsDialog->setWindowTitle("Zephyr PCIe ls");
-    pcieLsDialog->resize(900, 500);
+    pcieLsDialog->setWindowTitle(QString("pcie ls  ·  %1").arg(topologyModeTitle()));
+    fitToAvailableScreen(pcieLsDialog, 0.75);
     pcieLsDialog->setAttribute(Qt::WA_DeleteOnClose, true);
 
     QTextBrowser *browser = new QTextBrowser(pcieLsDialog);
@@ -977,13 +1147,17 @@ void MainWindow::pollLiveTrace()
         }
         updateSummaryStats();
         updateAiPerformanceReadout();
-        statusLabel->setText(QString("Live trace: %1 entries").arg(model->rowCount()));
+        statusLabel->setText(QString("%1 live trace: %2 entries")
+                                 .arg(topologyModeTitle())
+                                 .arg(model->rowCount()));
     }
 
     if (liveTraceProcess && liveTraceProcess->state() == QProcess::NotRunning) {
         liveTraceTimer->stop();
         updateAiPerformanceReadout();
-        statusLabel->setText(QString("Loaded %1 live trace entries from %2").arg(model->rowCount()).arg(liveTracePath));
+        statusLabel->setText(QString("%1 finished  ·  %2 live entries")
+                                 .arg(topologyModeTitle())
+                                 .arg(model->rowCount()));
         liveTraceProcess = nullptr;
     }
 }
@@ -1220,6 +1394,125 @@ QString MainWindow::findRepoPath(const QStringList &relativeCandidates) const
     return QString();
 }
 
+QString MainWindow::repoRootPath() const
+{
+    const QString script = findRepoPath({"scripts/run_zephyr_ai_topology.sh", "config/ai_golden_topology.json"});
+    if (script.isEmpty()) {
+        return QDir::currentPath();
+    }
+    QFileInfo info(script);
+    if (info.fileName() == QLatin1String("run_zephyr_ai_topology.sh")) {
+        return QDir::cleanPath(info.absolutePath() + "/..");
+    }
+    return info.absolutePath();
+}
+
+QString MainWindow::resolveZephyrScript() const
+{
+    return findRepoPath({"scripts/run_zephyr_ai_topology.sh"});
+}
+
+QStringList MainWindow::listConfigTopologyFiles() const
+{
+    const QString configDir = findRepoPath({"config/ai_golden_topology.json", "config"});
+    QDir dir;
+    if (configDir.endsWith(QLatin1String(".json"))) {
+        dir = QFileInfo(configDir).absoluteDir();
+    } else {
+        dir = QDir(configDir);
+    }
+    QStringList files;
+    const QStringList names = dir.entryList({"*.json"}, QDir::Files, QDir::Name);
+    for (const QString &name : names) {
+        files << dir.absoluteFilePath(name);
+    }
+    return files;
+}
+
+QString MainWindow::topologyTraceFileName() const
+{
+    if (topologyRunMode == TopologyRunMode::ZephyrGolden) {
+        return QStringLiteral("zephyr_ai_topology_trace.log");
+    }
+    if (topologyRunMode == TopologyRunMode::JsonFile) {
+        const QString stem = QFileInfo(currentTopologyJsonPath).completeBaseName();
+        return QStringLiteral("zephyr_%1_trace.log").arg(stem.isEmpty() ? QStringLiteral("json") : stem);
+    }
+    return QStringLiteral("zephyr_generated_trace.log");
+}
+
+QString MainWindow::activeTopologyJsonPath(const QString &workDir)
+{
+    if (topologyRunMode == TopologyRunMode::ZephyrGolden) {
+        const QString golden = findRepoPath({"config/ai_golden_topology.json"});
+        if (!golden.isEmpty()) {
+            currentTopologyJsonPath = golden;
+            return golden;
+        }
+    }
+    if (topologyRunMode == TopologyRunMode::JsonFile && !currentTopologyJsonPath.isEmpty()
+        && QFileInfo::exists(currentTopologyJsonPath)) {
+        return currentTopologyJsonPath;
+    }
+    return materializeCurrentTopology(workDir);
+}
+
+QString MainWindow::topologyModeTitle() const
+{
+    switch (topologyRunMode) {
+        case TopologyRunMode::ZephyrGolden:
+            return QStringLiteral("Zephyr golden runner");
+        case TopologyRunMode::JsonFile:
+            return QStringLiteral("JSON topology");
+        case TopologyRunMode::Generated:
+            return QStringLiteral("Generated topology");
+    }
+    return QStringLiteral("Topology");
+}
+
+void MainWindow::updateTopologySourceUi()
+{
+    const QString name = currentTopology.value("topology_name").toString("unnamed");
+    QString detail;
+    QString badge;
+
+    if (topologyRunMode == TopologyRunMode::ZephyrGolden) {
+        badge = QStringLiteral("Zephyr golden fabric");
+        detail = name;
+    } else if (topologyRunMode == TopologyRunMode::JsonFile) {
+        const QString fileName = currentTopologyJsonPath.isEmpty()
+            ? QStringLiteral("no topology selected")
+            : QFileInfo(currentTopologyJsonPath).completeBaseName();
+        badge = QStringLiteral("Custom topology");
+        detail = QStringLiteral("%1  ·  %2").arg(fileName, name);
+    } else {
+        badge = QStringLiteral("Generated topology");
+        detail = name;
+    }
+
+    if (topologySourceBadge) {
+        topologySourceBadge->setText(badge + QStringLiteral("  ·  ") + detail);
+    }
+    if (aiTopologyPathLabel) {
+        aiTopologyPathLabel->setText(detail);
+        aiTopologyPathLabel->hide();
+    }
+    if (runTopologyButton) {
+        if (topologyRunMode == TopologyRunMode::ZephyrGolden) {
+            runTopologyButton->setText("Run Zephyr golden");
+        } else if (topologyRunMode == TopologyRunMode::JsonFile) {
+            const QString fileName = QFileInfo(currentTopologyJsonPath).fileName();
+            runTopologyButton->setText(fileName.isEmpty() ? QStringLiteral("Run JSON topology")
+                                                          : QString("Run JSON: %1").arg(fileName));
+        } else {
+            runTopologyButton->setText("Run generated topology");
+        }
+    }
+    if (topologyFileCombo) {
+        topologyFileCombo->setEnabled(topologyRunMode == TopologyRunMode::JsonFile);
+    }
+}
+
 QJsonObject MainWindow::generateTopologyFromCounts(int rootPorts, int endpointsPerRoot) const
 {
     QJsonObject topo;
@@ -1322,11 +1615,7 @@ void MainWindow::renderCurrentTopology()
     if (aiTopologyView) {
         aiTopologyView->setHtml(buildTopologyHtmlFromJson(currentTopology));
     }
-    if (aiTopologyPathLabel) {
-        const QString name = currentTopology.value("topology_name").toString("unnamed");
-        const QString path = currentTopologyJsonPath.isEmpty() ? QStringLiteral("(generated)") : currentTopologyJsonPath;
-        aiTopologyPathLabel->setText(QString("Topology: %1  |  %2").arg(name, path));
-    }
+    updateTopologySourceUi();
 }
 
 void MainWindow::injectFabricEnumerationPackets()
@@ -1516,16 +1805,16 @@ void MainWindow::runAiPerformanceScenario(const QString &profile,
 
     if (resolvedScript.isEmpty()) {
         QMessageBox::warning(this, "AI performance measurement failed",
-                             "Unable to locate scripts/run_zephyr_ai_topology.sh. The AI performance path requires the real Zephyr topology runner.");
+                             "The Zephyr topology runner is not available in this workspace.");
         return;
     }
 
-    const QString workDir = QFileInfo(resolvedScript).absolutePath() + "/..";
+    const QString workDir = QDir::cleanPath(QFileInfo(resolvedScript).absolutePath() + "/..");
     if (currentTopology.isEmpty()) {
         currentTopology = generateTopologyFromCounts(rootPorts, endpointsPerRoot);
     }
-    const QString topoPath = materializeCurrentTopology(workDir);
-    const QString traceLog = QDir(workDir).filePath("zephyr_ai_topology_trace.log");
+    const QString topoPath = activeTopologyJsonPath(workDir);
+    const QString traceLog = QDir(workDir).filePath(topologyTraceFileName());
     currentAiPerformanceTargetTps = tps;
     currentAiPerformanceTargetLatencyNs = latencyNs;
     liveTraceSeen.clear();
@@ -1548,21 +1837,21 @@ void MainWindow::runAiPerformanceScenario(const QString &profile,
     liveTraceProcess = new QProcess(this);
     liveTraceProcess->setWorkingDirectory(workDir);
     liveTraceProcess->setProgram("bash");
-    const QString perfCommand = QString("TRACE_LOG='%1' RUN_TIMEOUT_SECONDS=5 PCIE_DUMMY_PROFILE='%2' PCIE_DUMMY_SCENARIO='%3' TOPOLOGY_JSON='%4' '%5'")
-        .arg(traceLog)
-        .arg(profile)
-        .arg(scenarioSpec)
-        .arg(topoPath)
-        .arg(resolvedScript);
-    liveTraceProcess->setArguments({"-lc", perfCommand});
+    liveTraceProcess->setArguments({resolvedScript});
     QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
         env.insert("PCIE_DUMMY_PROFILE", profile);
         env.insert("PCIE_DUMMY_SCENARIO", scenarioSpec);
         env.insert("RUN_TIMEOUT_SECONDS", "5");
         env.insert("TRACE_LOG", traceLog);
+        env.insert("PCIE_HEADLESS", "1");
         if (!topoPath.isEmpty()) {
             env.insert("TOPOLOGY_JSON", topoPath);
         }
+        env.insert("TOPOLOGY_MODE", topologyRunMode == TopologyRunMode::ZephyrGolden
+                                        ? QStringLiteral("zephyr-golden")
+                                        : (topologyRunMode == TopologyRunMode::JsonFile
+                                               ? QStringLiteral("json-file")
+                                               : QStringLiteral("generated")));
     liveTraceProcess->setProcessEnvironment(env);
 
     connect(liveTraceProcess, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
@@ -1646,11 +1935,8 @@ void MainWindow::runAiPerformanceScenario(const QString &profile,
         return;
     }
 
-    statusLabel->setText("Running AI topology performance measurement...");
-    QMessageBox::information(this, "AI PCIe topology measurement started",
-                             QString("A fresh Zephyr AI topology session is running for a bounded performance window. "
-                                     "pcieshark is reading %1 and updating the live counters until the run completes.")
-                             .arg(traceLog));
+    statusLabel->setText(QString("Measuring %1  ·  %2")
+                             .arg(topologyModeTitle(), currentTopology.value("topology_name").toString()));
 }
 
 void MainWindow::openAiPerfDialog()
@@ -1658,97 +1944,184 @@ void MainWindow::openAiPerfDialog()
     if (!aiEmulatorDialog) {
         aiEmulatorDialog = new QDialog(this);
         aiEmulatorDialog->setWindowTitle("AI PCIe Emulator");
-        aiEmulatorDialog->resize(980, 760);
         aiEmulatorDialog->setAttribute(Qt::WA_DeleteOnClose, false);
         aiEmulatorDialog->setModal(false);
+        aiEmulatorDialog->setSizeGripEnabled(true);
 
         QVBoxLayout *mainLayout = new QVBoxLayout(aiEmulatorDialog);
+        mainLayout->setContentsMargins(16, 16, 16, 16);
+        mainLayout->setSpacing(10);
 
-        aiPerformanceReadout = new QLabel("Live performance: waiting for trace...", aiEmulatorDialog);
-        aiPerformanceReadout->setStyleSheet("QLabel { font-weight: 600; color: #1f2937; } ");
+        auto *sourceBox = new QGroupBox("Topology source", aiEmulatorDialog);
+        auto *sourceLayout = new QGridLayout(sourceBox);
+        sourceLayout->setContentsMargins(10, 8, 10, 8);
+        sourceLayout->setHorizontalSpacing(10);
+        sourceLayout->setVerticalSpacing(6);
+
+        topologyModeCombo = new QComboBox(sourceBox);
+        topologyModeCombo->addItem("Zephyr golden runner", static_cast<int>(TopologyRunMode::ZephyrGolden));
+        topologyModeCombo->addItem("JSON topology file", static_cast<int>(TopologyRunMode::JsonFile));
+        topologyModeCombo->addItem("Generated from fields", static_cast<int>(TopologyRunMode::Generated));
+
+        topologyFileCombo = new QComboBox(sourceBox);
+        QPushButton *browseJsonButton = new QPushButton("Browse JSON...", sourceBox);
+        QPushButton *generateTopoButton = new QPushButton("Generate from fields", sourceBox);
+
+        topologySourceBadge = new QLabel(sourceBox);
+        topologySourceBadge->setObjectName("topologySourceBadge");
+        topologySourceBadge->setWordWrap(false);
+
+        aiTopologyPathLabel = new QLabel("Topology: (none)", sourceBox);
+        aiTopologyPathLabel->setWordWrap(true);
+        aiTopologyPathLabel->hide();
+
+        sourceLayout->addWidget(new QLabel("Run mode", sourceBox), 0, 0);
+        sourceLayout->addWidget(topologyModeCombo, 0, 1);
+        sourceLayout->addWidget(new QLabel("JSON file", sourceBox), 0, 2);
+        sourceLayout->addWidget(topologyFileCombo, 0, 3);
+        sourceLayout->addWidget(browseJsonButton, 0, 4);
+        sourceLayout->addWidget(generateTopoButton, 0, 5);
+        sourceLayout->addWidget(topologySourceBadge, 1, 0, 1, 6);
+        sourceLayout->setColumnStretch(1, 1);
+        sourceLayout->setColumnStretch(3, 1);
 
         QTextBrowser *topologyView = new QTextBrowser(aiEmulatorDialog);
         topologyView->setOpenExternalLinks(false);
         topologyView->setReadOnly(true);
         topologyView->setMinimumHeight(320);
+        topologyView->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
         aiTopologyView = topologyView;
 
-        aiTopologyPathLabel = new QLabel("Topology: (none)", aiEmulatorDialog);
-        aiTopologyPathLabel->setWordWrap(true);
+        aiPerformanceReadout = new QLabel("Live performance: waiting for trace...", aiEmulatorDialog);
+        aiPerformanceReadout->setObjectName("summaryCard");
 
-        QHBoxLayout *topoButtons = new QHBoxLayout();
-        QPushButton *loadTopoButton = new QPushButton("Load topology JSON...", aiEmulatorDialog);
-        QPushButton *generateTopoButton = new QPushButton("Generate from fields", aiEmulatorDialog);
-        topoButtons->addWidget(loadTopoButton);
-        topoButtons->addWidget(generateTopoButton);
-        topoButtons->addStretch();
+        auto *workloadBox = new QGroupBox("Workload profile", aiEmulatorDialog);
+        auto *form = new QGridLayout(workloadBox);
+        form->setContentsMargins(10, 8, 10, 8);
+        form->setHorizontalSpacing(12);
+        form->setVerticalSpacing(6);
 
-        QFormLayout *form = new QFormLayout();
-        QComboBox *preset = new QComboBox(aiEmulatorDialog);
-        preset->addItem("AI golden topology");
+        auto makeFormLabel = [workloadBox](const QString &text) {
+            auto *label = new QLabel(text, workloadBox);
+            label->setMinimumWidth(110);
+            return label;
+        };
+
+        QComboBox *preset = new QComboBox(workloadBox);
+        preset->addItem("Golden workload");
         preset->addItem("Low latency mesh");
         preset->addItem("High throughput fabric");
         preset->addItem("Custom");
-        preset->setCurrentText("AI golden topology");
+        preset->setCurrentText("Golden workload");
 
-        QSpinBox *rootPorts = new QSpinBox(aiEmulatorDialog);
+        QSpinBox *rootPorts = new QSpinBox(workloadBox);
         rootPorts->setRange(1, 16);
         rootPorts->setValue(4);
-        QSpinBox *endpointPerRoot = new QSpinBox(aiEmulatorDialog);
+        QSpinBox *endpointPerRoot = new QSpinBox(workloadBox);
         endpointPerRoot->setRange(1, 16);
         endpointPerRoot->setValue(2);
-        QSpinBox *buses = new QSpinBox(aiEmulatorDialog);
+        QSpinBox *buses = new QSpinBox(workloadBox);
         buses->setRange(1, 8);
         buses->setValue(4);
-        QSpinBox *iterations = new QSpinBox(aiEmulatorDialog);
+        QSpinBox *iterations = new QSpinBox(workloadBox);
         iterations->setRange(1, 1000);
-        iterations->setValue(10);
-        QSpinBox *latencyNs = new QSpinBox(aiEmulatorDialog);
+        iterations->setValue(20);
+        QSpinBox *latencyNs = new QSpinBox(workloadBox);
         latencyNs->setRange(0, 1000000);
-        latencyNs->setValue(250);
-        QSpinBox *tps = new QSpinBox(aiEmulatorDialog);
+        latencyNs->setValue(80);
+        QSpinBox *tps = new QSpinBox(workloadBox);
         tps->setRange(1, 100000000);
-        tps->setValue(250000);
-        QSpinBox *burstSize = new QSpinBox(aiEmulatorDialog);
+        tps->setValue(500000);
+        QSpinBox *burstSize = new QSpinBox(workloadBox);
         burstSize->setRange(1, 64);
-        burstSize->setValue(16);
-        QSpinBox *jitterNs = new QSpinBox(aiEmulatorDialog);
+        burstSize->setValue(32);
+        QSpinBox *jitterNs = new QSpinBox(workloadBox);
         jitterNs->setRange(0, 1000000);
-        jitterNs->setValue(50);
-        QDoubleSpinBox *dropRate = new QDoubleSpinBox(aiEmulatorDialog);
+        jitterNs->setValue(25);
+        QDoubleSpinBox *dropRate = new QDoubleSpinBox(workloadBox);
         dropRate->setRange(0.0, 1.0);
         dropRate->setSingleStep(0.001);
         dropRate->setValue(0.0);
 
-        form->addRow("Preset", preset);
-        form->addRow("Root ports", rootPorts);
-        form->addRow("Endpoints / root", endpointPerRoot);
-        form->addRow("Buses", buses);
-        form->addRow("Iterations", iterations);
-        form->addRow("Latency (ns)", latencyNs);
-        form->addRow("Tokens/sec", tps);
-        form->addRow("Burst size", burstSize);
-        form->addRow("Jitter (ns)", jitterNs);
-        form->addRow("Drop rate", dropRate);
+        form->addWidget(makeFormLabel("Workload"), 0, 0);
+        form->addWidget(preset, 0, 1);
+        form->addWidget(makeFormLabel("Root ports"), 0, 2);
+        form->addWidget(rootPorts, 0, 3);
+        form->addWidget(makeFormLabel("Endpoints / root"), 1, 0);
+        form->addWidget(endpointPerRoot, 1, 1);
+        form->addWidget(makeFormLabel("Buses"), 1, 2);
+        form->addWidget(buses, 1, 3);
+        form->addWidget(makeFormLabel("Iterations"), 2, 0);
+        form->addWidget(iterations, 2, 1);
+        form->addWidget(makeFormLabel("Latency (ns)"), 2, 2);
+        form->addWidget(latencyNs, 2, 3);
+        form->addWidget(makeFormLabel("Tokens/sec"), 3, 0);
+        form->addWidget(tps, 3, 1);
+        form->addWidget(makeFormLabel("Burst size"), 3, 2);
+        form->addWidget(burstSize, 3, 3);
+        form->addWidget(makeFormLabel("Jitter (ns)"), 4, 0);
+        form->addWidget(jitterNs, 4, 1);
+        form->addWidget(makeFormLabel("Drop rate"), 4, 2);
+        form->addWidget(dropRate, 4, 3);
+        form->setColumnStretch(1, 1);
+        form->setColumnStretch(3, 1);
 
-        QPushButton *enumerateButton = new QPushButton("Enumerate complete flow", aiEmulatorDialog);
+        runTopologyButton = new QPushButton("Run Zephyr golden", aiEmulatorDialog);
         QPushButton *measureButton = new QPushButton("Measure performance", aiEmulatorDialog);
         QPushButton *pcieLsButton = new QPushButton("Show pcie ls", aiEmulatorDialog);
+        auto *closeButton = new QPushButton("Close", aiEmulatorDialog);
         auto *actionButtons = new QDialogButtonBox(Qt::Horizontal, aiEmulatorDialog);
-        actionButtons->addButton(enumerateButton, QDialogButtonBox::ActionRole);
+        actionButtons->addButton(runTopologyButton, QDialogButtonBox::ActionRole);
         actionButtons->addButton(measureButton, QDialogButtonBox::ActionRole);
         actionButtons->addButton(pcieLsButton, QDialogButtonBox::ActionRole);
-        auto *closeButton = new QPushButton("Close", aiEmulatorDialog);
         actionButtons->addButton(closeButton, QDialogButtonBox::ActionRole);
 
-        mainLayout->addWidget(topologyView);
-        mainLayout->addWidget(aiTopologyPathLabel);
-        mainLayout->addLayout(topoButtons);
-        mainLayout->addWidget(aiPerformanceReadout);
-        mainLayout->addLayout(form);
-        mainLayout->addWidget(actionButtons);
+        auto *bodySplit = new QSplitter(Qt::Vertical, aiEmulatorDialog);
+        bodySplit->addWidget(topologyView);
+        bodySplit->addWidget(workloadBox);
+        bodySplit->setStretchFactor(0, 4);
+        bodySplit->setStretchFactor(1, 0);
+        bodySplit->setChildrenCollapsible(false);
+        workloadBox->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
 
-        auto applyPreset = [this, preset, rootPorts, endpointPerRoot, buses, iterations, latencyNs, tps, burstSize, jitterNs, dropRate](int index) {
+        mainLayout->addWidget(sourceBox, 0);
+        mainLayout->addWidget(bodySplit, 1);
+        mainLayout->addWidget(aiPerformanceReadout, 0);
+        mainLayout->addWidget(actionButtons, 0);
+
+        auto fillJsonCombo = [this](const QString &selectPath) {
+            const QString previous = selectPath.isEmpty() ? topologyFileCombo->currentData().toString()
+                                                          : selectPath;
+            topologyFileCombo->blockSignals(true);
+            topologyFileCombo->clear();
+            const QStringList files = listConfigTopologyFiles();
+            for (const QString &path : files) {
+                topologyFileCombo->addItem(QFileInfo(path).fileName(), path);
+            }
+            int idx = topologyFileCombo->findData(previous);
+            if (idx < 0 && !previous.isEmpty() && QFileInfo::exists(previous)) {
+                topologyFileCombo->addItem(QFileInfo(previous).fileName(), previous);
+                idx = topologyFileCombo->findData(previous);
+            }
+            if (idx >= 0) {
+                topologyFileCombo->setCurrentIndex(idx);
+            }
+            topologyFileCombo->blockSignals(false);
+        };
+
+        auto loadGolden = [this, fillJsonCombo]() {
+            QString error;
+            const QString golden = findRepoPath({"config/ai_golden_topology.json"});
+            if (!golden.isEmpty() && loadTopologyFile(golden, &error)) {
+                topologyRunMode = TopologyRunMode::ZephyrGolden;
+                fillJsonCombo(golden);
+                renderCurrentTopology();
+                return true;
+            }
+            return false;
+        };
+
+        auto applyWorkload = [rootPorts, endpointPerRoot, buses, iterations, latencyNs, tps, burstSize, jitterNs, dropRate](int index) {
             switch (index) {
                 case 0:
                     rootPorts->setValue(4);
@@ -1786,28 +2159,44 @@ void MainWindow::openAiPerfDialog()
                 default:
                     break;
             }
-
-            QString error;
-            if (index == 0) {
-                const QString golden = findRepoPath({"config/ai_golden_topology.json"});
-                if (!golden.isEmpty() && loadTopologyFile(golden, &error)) {
-                    renderCurrentTopology();
-                    return;
-                }
-            } else if (index == 1) {
-                const QString cluster = findRepoPath({"config/ai_cluster_8gpu.json"});
-                if (!cluster.isEmpty() && loadTopologyFile(cluster, &error)) {
-                    renderCurrentTopology();
-                    return;
-                }
-            }
-
-            currentTopology = generateTopologyFromCounts(rootPorts->value(), endpointPerRoot->value());
-            currentTopologyJsonPath.clear();
-            renderCurrentTopology();
         };
-        connect(preset, QOverload<int>::of(&QComboBox::currentIndexChanged), applyPreset);
-        connect(loadTopoButton, &QPushButton::clicked, this, [this, preset]() {
+
+        auto applyMode = [this, fillJsonCombo, loadGolden, rootPorts, endpointPerRoot](int index) {
+            topologyRunMode = static_cast<TopologyRunMode>(topologyModeCombo->itemData(index).toInt());
+            if (topologyRunMode == TopologyRunMode::ZephyrGolden) {
+                loadGolden();
+            } else if (topologyRunMode == TopologyRunMode::JsonFile) {
+                fillJsonCombo(currentTopologyJsonPath);
+                const QString path = topologyFileCombo->currentData().toString();
+                QString error;
+                if (!path.isEmpty() && loadTopologyFile(path, &error)) {
+                    renderCurrentTopology();
+                } else {
+                    updateTopologySourceUi();
+                }
+            } else {
+                currentTopology = generateTopologyFromCounts(rootPorts->value(), endpointPerRoot->value());
+                currentTopologyJsonPath.clear();
+                renderCurrentTopology();
+            }
+            updateTopologySourceUi();
+        };
+
+        fillJsonCombo(findRepoPath({"config/ai_golden_topology.json"}));
+        connect(topologyModeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), applyMode);
+        connect(topologyFileCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) {
+            if (topologyRunMode != TopologyRunMode::JsonFile) {
+                return;
+            }
+            const QString path = topologyFileCombo->currentData().toString();
+            QString error;
+            if (!path.isEmpty() && loadTopologyFile(path, &error)) {
+                renderCurrentTopology();
+                statusLabel->setText(QString("Custom topology ready: %1")
+                                         .arg(currentTopology.value("topology_name").toString()));
+            }
+        });
+        connect(browseJsonButton, &QPushButton::clicked, this, [this, fillJsonCombo]() {
             const QString startDir = findRepoPath({"config/ai_golden_topology.json"});
             const QString path = QFileDialog::getOpenFileName(
                 this,
@@ -1822,37 +2211,43 @@ void MainWindow::openAiPerfDialog()
                 QMessageBox::warning(this, "Invalid topology", error);
                 return;
             }
-            preset->setCurrentText("Custom");
+            topologyRunMode = TopologyRunMode::JsonFile;
+            topologyModeCombo->setCurrentIndex(1);
+            fillJsonCombo(path);
             renderCurrentTopology();
-            statusLabel->setText(QString("Loaded topology %1").arg(path));
+            statusLabel->setText(QString("Loaded custom topology: %1")
+                                     .arg(currentTopology.value("topology_name").toString()));
         });
-        connect(generateTopoButton, &QPushButton::clicked, this, [this, preset, rootPorts, endpointPerRoot]() {
+        connect(generateTopoButton, &QPushButton::clicked, this, [this, rootPorts, endpointPerRoot]() {
+            topologyRunMode = TopologyRunMode::Generated;
+            topologyModeCombo->setCurrentIndex(2);
             currentTopology = generateTopologyFromCounts(rootPorts->value(), endpointPerRoot->value());
             currentTopologyJsonPath.clear();
-            preset->setCurrentText("Custom");
             renderCurrentTopology();
         });
-        connect(enumerateButton, &QPushButton::clicked, this, [this, rootPorts, endpointPerRoot]() {
+        connect(preset, QOverload<int>::of(&QComboBox::currentIndexChanged), applyWorkload);
+        connect(runTopologyButton, &QPushButton::clicked, this, [this, rootPorts, endpointPerRoot]() {
             if (currentTopology.isEmpty()) {
                 currentTopology = generateTopologyFromCounts(rootPorts->value(), endpointPerRoot->value());
             }
             renderCurrentTopology();
             injectFabricEnumerationPackets();
 
-            const QString resolvedScript = findRepoPath({"scripts/run_zephyr_ai_topology.sh"});
+            const QString resolvedScript = resolveZephyrScript();
             if (resolvedScript.isEmpty()) {
-                statusLabel->setText(QString("Enumerated fabric '%1' in-process (Zephyr runner not found)")
-                                         .arg(currentTopology.value("topology_name").toString()));
+                statusLabel->setText(QString("%1 enumerated in-process (Zephyr runner not found)")
+                                         .arg(topologyModeTitle()));
                 QMessageBox::information(this, "Topology enumerated",
-                                         "The defined fabric was walked and CfgRd traffic was generated. "
-                                         "Install the Zephyr runner to also enumerate the same topology in QEMU.");
+                                         "The selected fabric was walked and CfgRd traffic was generated. "
+                                         "The live QEMU topology runner is not available.");
                 return;
             }
 
-            const QString workingDir = QFileInfo(resolvedScript).absolutePath() + "/..";
-            const QString topoPath = materializeCurrentTopology(workingDir);
-            const QString traceLog = QDir(workingDir).filePath("zephyr_ai_topology_trace.log");
-            statusLabel->setText(QString("Enumerating topology %1 ...").arg(currentTopology.value("topology_name").toString()));
+            const QString workingDir = QDir::cleanPath(QFileInfo(resolvedScript).absolutePath() + "/..");
+            const QString topoPath = activeTopologyJsonPath(workingDir);
+            const QString traceLog = QDir(workingDir).filePath(topologyTraceFileName());
+            statusLabel->setText(QString("Starting %1  ·  %2")
+                                     .arg(topologyModeTitle(), QFileInfo(topoPath).fileName()));
 
             liveTraceSeen.clear();
             liveTracePath = traceLog;
@@ -1872,9 +2267,17 @@ void MainWindow::openAiPerfDialog()
             liveTraceProcess = new QProcess(this);
             liveTraceProcess->setWorkingDirectory(workingDir);
             liveTraceProcess->setProgram("bash");
-            liveTraceProcess->setArguments({"-lc", resolvedScript});
+            liveTraceProcess->setArguments({resolvedScript});
+            liveTraceProcess->setProcessChannelMode(QProcess::MergedChannels);
             QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
             env.insert("TOPOLOGY_JSON", topoPath);
+            env.insert("TRACE_LOG", traceLog);
+            env.insert("PCIE_HEADLESS", "1");
+            env.insert("TOPOLOGY_MODE", topologyRunMode == TopologyRunMode::ZephyrGolden
+                                            ? QStringLiteral("zephyr-golden")
+                                            : (topologyRunMode == TopologyRunMode::JsonFile
+                                                   ? QStringLiteral("json-file")
+                                                   : QStringLiteral("generated")));
             liveTraceProcess->setProcessEnvironment(env);
 
             connect(liveTraceProcess, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
@@ -1883,29 +2286,50 @@ void MainWindow::openAiPerfDialog()
                             suppressAiRunnerExitWarning = false;
                             return;
                         }
+                        const QString runnerOut = liveTraceProcess
+                            ? QString::fromLocal8Bit(liveTraceProcess->readAll()).trimmed()
+                            : QString();
+                        QString logTail;
+                        QFile logFile(traceLog);
+                        if (logFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                            const QString all = QString::fromUtf8(logFile.readAll());
+                            const QStringList lines = all.split('\n');
+                            logTail = lines.mid(qMax(0, lines.size() - 12)).join('\n').trimmed();
+                        }
                         if (status == QProcess::CrashExit || exitCode != 0) {
-                            QMessageBox::warning(this, "Zephyr topology enumeration failed",
-                                                 "The Zephyr AI topology runner exited with an error. "
-                                                 "The in-process fabric walk is still in the packet table.");
+                            QString detail = runnerOut;
+                            if (detail.isEmpty()) {
+                                detail = logTail;
+                            }
+                            if (detail.isEmpty()) {
+                                detail = QStringLiteral("No runner output was captured.");
+                            }
+                            statusLabel->setText(QString("%1 failed  ·  see dialog for QEMU output")
+                                                     .arg(topologyModeTitle()));
+                            QMessageBox::warning(this, "Topology run failed",
+                                                 QString("%1 exited with code %2.\n\n%3")
+                                                     .arg(topologyModeTitle())
+                                                     .arg(exitCode)
+                                                     .arg(detail.left(1200)));
                             return;
                         }
                         if (QFileInfo::exists(traceLog)) {
                             loadTraceFile(traceLog);
-                            statusLabel->setText(QString("Loaded %1 trace entries from %2").arg(model->rowCount()).arg(traceLog));
+                            statusLabel->setText(QString("%1 finished  ·  %2 entries")
+                                                     .arg(topologyModeTitle())
+                                                     .arg(model->rowCount()));
                         }
                     });
 
             liveTraceProcess->start();
-            QMessageBox::information(this, "Topology enumeration started",
-                                     QString("Fabric '%1' was enumerated in pcieshark.\n"
-                                             "QEMU is also launching with TOPOLOGY_JSON=%2")
-                                         .arg(currentTopology.value("topology_name").toString(), topoPath));
+            statusLabel->setText(QString("%1 started  ·  %2")
+                                     .arg(topologyModeTitle(), currentTopology.value("topology_name").toString()));
         });
         connect(measureButton, &QPushButton::clicked, this, [this, preset, rootPorts, endpointPerRoot, buses, iterations, latencyNs, tps, burstSize, jitterNs, dropRate]() {
             QString profile = "gen8x16";
-            if (preset->currentText() == "AI golden topology") profile = "gen8x16";
-            else if (preset->currentText() == "Low latency mesh") profile = "gen7x8";
-            else if (preset->currentText() == "High throughput fabric") profile = "gen8x16";
+            if (preset->currentText() == "Low latency mesh") {
+                profile = "gen7x8";
+            }
 
             runAiPerformanceScenario(profile,
                                      rootPorts->value(),
@@ -1919,29 +2343,19 @@ void MainWindow::openAiPerfDialog()
                                      buses->value());
         });
         connect(pcieLsButton, &QPushButton::clicked, this, [this]() {
-            const QStringList candidateScripts = {
-                QDir::cleanPath(QDir::currentPath() + "/scripts/run_zephyr_ai_topology.sh"),
-                QDir::cleanPath(QCoreApplication::applicationDirPath() + "/../scripts/run_zephyr_ai_topology.sh"),
-                QDir::cleanPath(QCoreApplication::applicationDirPath() + "/../../scripts/run_zephyr_ai_topology.sh"),
-                QDir::cleanPath(QCoreApplication::applicationDirPath() + "/../../../scripts/run_zephyr_ai_topology.sh")
-            };
-
-            QString resolvedScript;
-            for (const QString &candidate : candidateScripts) {
-                if (QFileInfo::exists(candidate)) {
-                    resolvedScript = candidate;
-                    break;
-                }
-            }
-
+            const QString resolvedScript = resolveZephyrScript();
             if (resolvedScript.isEmpty()) {
                 QMessageBox::warning(this, "Zephyr runner missing",
-                                     "Unable to locate scripts/run_zephyr_ai_topology.sh.");
+                                     "The Zephyr topology runner is not available.");
                 return;
             }
 
-            const QString workingDir = QFileInfo(resolvedScript).absolutePath() + "/..";
-            const QString pcieLsLog = QDir(workingDir).filePath("zephyr_pcie_ls.log");
+            const QString workingDir = QDir::cleanPath(QFileInfo(resolvedScript).absolutePath() + "/..");
+            const QString stem = QFileInfo(activeTopologyJsonPath(workingDir)).completeBaseName();
+            const QString pcieLsLog = QDir(workingDir).filePath(
+                topologyRunMode == TopologyRunMode::ZephyrGolden
+                    ? QStringLiteral("zephyr_pcie_ls.log")
+                    : QString("zephyr_%1_pcie_ls.log").arg(stem.isEmpty() ? QStringLiteral("json") : stem));
 
             QProcess *proc = new QProcess(this);
             proc->setWorkingDirectory(workingDir);
@@ -1950,13 +2364,12 @@ void MainWindow::openAiPerfDialog()
             env.insert("PCIE_LS_CAPTURE", "1");
             env.insert("PCIE_LS_LOG", pcieLsLog);
             env.insert("RUN_TIMEOUT_SECONDS", "15");
-            if (!currentTopologyJsonPath.isEmpty()) {
-                env.insert("TOPOLOGY_JSON", currentTopologyJsonPath);
-            } else if (!currentTopology.isEmpty()) {
-                env.insert("TOPOLOGY_JSON", materializeCurrentTopology(workingDir));
-            }
+            env.insert("TOPOLOGY_JSON", activeTopologyJsonPath(workingDir));
+            env.insert("TOPOLOGY_MODE", topologyRunMode == TopologyRunMode::ZephyrGolden
+                                            ? QStringLiteral("zephyr-golden")
+                                            : QStringLiteral("json-file"));
             proc->setProcessEnvironment(env);
-            proc->setArguments({"-lc", resolvedScript});
+            proc->setArguments({resolvedScript});
             connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
                     this, [this, pcieLsLog](int exitCode, QProcess::ExitStatus status) {
                         if (status == QProcess::CrashExit || exitCode != 0) {
@@ -1969,19 +2382,30 @@ void MainWindow::openAiPerfDialog()
                         }
                     });
             proc->start();
-            statusLabel->setText("Capturing guest pcie ls output in a separate log...");
+            statusLabel->setText(QString("Capturing pcie ls for %1 ...").arg(topologyModeTitle()));
         });
         connect(closeButton, &QPushButton::clicked, aiEmulatorDialog, &QDialog::close);
         connect(aiEmulatorDialog, &QDialog::finished, this, [this]() {
             aiEmulatorDialog = nullptr;
             aiTopologyView = nullptr;
             aiTopologyPathLabel = nullptr;
+            topologySourceBadge = nullptr;
+            topologyModeCombo = nullptr;
+            topologyFileCombo = nullptr;
+            runTopologyButton = nullptr;
         });
 
-        applyPreset(preset->currentIndex());
+        loadGolden();
+        applyWorkload(0);
+        updateTopologySourceUi();
     }
 
+    fitToAvailableScreen(aiEmulatorDialog, 1.0);
     aiEmulatorDialog->show();
+    if (QSplitter *split = aiEmulatorDialog->findChild<QSplitter *>()) {
+        const int total = qMax(600, split->height());
+        split->setSizes({static_cast<int>(total * 0.72), static_cast<int>(total * 0.28)});
+    }
     aiEmulatorDialog->raise();
     aiEmulatorDialog->activateWindow();
 }
@@ -2157,10 +2581,9 @@ void MainWindow::showPacketDetails()
     const QString addrText = model->index(row, 7).data().toString();
     const QString payload = model->index(row, 8).data().toString();
 
-    bool ok = false;
-    const uint8_t typeCode = static_cast<uint8_t>(typeText.toUInt(&ok, 16));
-    const uint16_t requesterId = static_cast<uint16_t>(requester.toUInt());
-    const uint16_t completerId = static_cast<uint16_t>(completer.toUInt());
+    const uint8_t typeCode = tlpCodeFromName(typeText);
+    const uint16_t requesterId = static_cast<uint16_t>(requester.toUInt(nullptr, 0));
+    const uint16_t completerId = static_cast<uint16_t>(completer.toUInt(nullptr, 0));
     const uint8_t tagValue = static_cast<uint8_t>(tag.toUInt());
     const uint16_t lengthValue = static_cast<uint16_t>(lengthText.toUInt());
     const uint64_t addrValue = static_cast<uint64_t>(addrText.toULongLong(nullptr, 16));
@@ -2168,18 +2591,18 @@ void MainWindow::showPacketDetails()
     const pcie_tlp_t decoded = pcie_tlp_decode(typeCode, requesterId, completerId,
                                               tagValue, lengthValue, addrValue, nullptr);
 
-    const QString typeName = pcie_tlp_type_name(decodedType);
+    const QString typeName = QString::fromUtf8(pcie_tlp_type_name(decodedType));
     const QString payloadHex = formatHexDump(payload);
 
     QString details;
     details += QString("Packet #%1\n").arg(row + 1);
     details += QString("Timestamp: %1\n").arg(timestamp);
     details += QString("Direction: %1\n").arg(direction);
-    details += QString("Type: %1 (0x%2)\n\n").arg(typeName).arg(typeText);
+    details += QString("Type: %1 (%2)\n\n").arg(typeName, typeText);
     details += QString("Header fields:\n");
     details += QString("  - type: %1\n").arg(typeName);
-    details += QString("  - requester_id: %1\n").arg(decoded.requester_id);
-    details += QString("  - completer_id: %1\n").arg(decoded.completer_id);
+    details += QString("  - requester_id: %1\n").arg(requester);
+    details += QString("  - completer_id: %1\n").arg(completer);
     details += QString("  - tag: %1\n").arg(decoded.tag);
     details += QString("  - length: %1\n").arg(decoded.length);
     details += QString("  - address: 0x%1\n").arg(decoded.mem.addr, 0, 16);
@@ -2196,7 +2619,7 @@ void MainWindow::showPacketDetails()
     };
 
     addField("Direction", direction);
-    addField("Type", QString("%1 (0x%2)").arg(typeName).arg(typeText));
+    addField("Type", QString("%1 (%2)").arg(typeName, typeText));
     addField("Requester ID", requester);
     addField("Completer ID", completer);
     addField("Tag", tag);

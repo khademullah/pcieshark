@@ -104,8 +104,21 @@ cmake --build build -j$(nproc)
 
 ### 3. Launch the GUI
 
+Run these from the repository root, not from `build/`:
+
 ```bash
+./run_pcieshark.sh
+# or
 ./build/gui/pcieshark
+```
+
+If you are already inside `build/`, the binary is `./gui/pcieshark`.
+
+After renaming this tree (for example from `libpcapcie` to `pcieshark`), reconfigure before calling `make` again:
+
+```bash
+cmake -S . -B build
+cmake --build build -j$(nproc)
 ```
 
 The GUI can open and save traces, show packet details, filter rows, and run topology-related enumeration workflows.

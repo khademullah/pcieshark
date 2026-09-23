@@ -1,5 +1,5 @@
 CMakeFiles/sniff_and_send.dir/examples/sniff_and_send.c.o: \
- /home/khadem/libpcapcie/examples/sniff_and_send.c \
+ /home/khadem/pcieshark/examples/sniff_and_send.c \
  /usr/include/stdc-predef.h /usr/include/stdio.h \
  /usr/include/x86_64-linux-gnu/bits/libc-header-start.h \
  /usr/include/features.h /usr/include/features-time64.h \
@@ -24,12 +24,12 @@ CMakeFiles/sniff_and_send.dir/examples/sniff_and_send.c.o: \
  /usr/include/x86_64-linux-gnu/bits/stdio_lim.h \
  /usr/include/x86_64-linux-gnu/bits/floatn.h \
  /usr/include/x86_64-linux-gnu/bits/floatn-common.h \
- /home/khadem/libpcapcie/include/pcapcie/pcapcie.h \
- /home/khadem/libpcapcie/include/pcapcie/tlp.h \
+ /home/khadem/pcieshark/include/pcapcie/pcapcie.h \
+ /home/khadem/pcieshark/include/pcapcie/tlp.h \
  /usr/lib/gcc/x86_64-linux-gnu/15/include/stdint.h /usr/include/stdint.h \
  /usr/include/x86_64-linux-gnu/bits/wchar.h \
  /usr/include/x86_64-linux-gnu/bits/stdint-intn.h \
  /usr/include/x86_64-linux-gnu/bits/stdint-uintn.h \
  /usr/include/x86_64-linux-gnu/bits/stdint-least.h \
- /home/khadem/libpcapcie/include/pcapcie/filter.h \
- /home/khadem/libpcapcie/include/pcapcie/backend.h
+ /home/khadem/pcieshark/include/pcapcie/filter.h \
+ /home/khadem/pcieshark/include/pcapcie/backend.h

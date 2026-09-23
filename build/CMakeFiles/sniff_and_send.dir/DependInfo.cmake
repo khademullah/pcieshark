@@ -8,7 +8,7 @@ set(CMAKE_DEPENDS_LANGUAGES
 
 # The set of dependency files which are needed:
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
-  "/home/khadem/libpcapcie/examples/sniff_and_send.c" "CMakeFiles/sniff_and_send.dir/examples/sniff_and_send.c.o" "gcc" "CMakeFiles/sniff_and_send.dir/examples/sniff_and_send.c.o.d"
+  "/home/khadem/pcieshark/examples/sniff_and_send.c" "CMakeFiles/sniff_and_send.dir/examples/sniff_and_send.c.o" "gcc" "CMakeFiles/sniff_and_send.dir/examples/sniff_and_send.c.o.d"
   "" "sniff_and_send" "gcc" "CMakeFiles/sniff_and_send.dir/link.d"
   )
 

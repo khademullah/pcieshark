@@ -1,5 +1,5 @@
 CMakeFiles/pcapcie.dir/src/pcapcie.c.o: \
- /home/khadem/libpcapcie/src/pcapcie.c /usr/include/stdc-predef.h \
+ /home/khadem/pcieshark/src/pcapcie.c /usr/include/stdc-predef.h \
  /usr/include/stdio.h \
  /usr/include/x86_64-linux-gnu/bits/libc-header-start.h \
  /usr/include/features.h /usr/include/features-time64.h \
@@ -51,14 +51,14 @@ CMakeFiles/pcapcie.dir/src/pcapcie.c.o: \
  /usr/include/x86_64-linux-gnu/bits/stdlib-float.h /usr/include/string.h \
  /usr/include/x86_64-linux-gnu/bits/types/locale_t.h \
  /usr/include/x86_64-linux-gnu/bits/types/__locale_t.h \
- /usr/include/strings.h /home/khadem/libpcapcie/include/pcapcie/pcapcie.h \
- /home/khadem/libpcapcie/include/pcapcie/tlp.h \
+ /usr/include/strings.h /home/khadem/pcieshark/include/pcapcie/pcapcie.h \
+ /home/khadem/pcieshark/include/pcapcie/tlp.h \
  /usr/lib/gcc/x86_64-linux-gnu/15/include/stdint.h /usr/include/stdint.h \
  /usr/include/x86_64-linux-gnu/bits/wchar.h \
  /usr/include/x86_64-linux-gnu/bits/stdint-uintn.h \
  /usr/include/x86_64-linux-gnu/bits/stdint-least.h \
- /home/khadem/libpcapcie/include/pcapcie/filter.h \
- /home/khadem/libpcapcie/include/pcapcie/backend.h /usr/include/time.h \
+ /home/khadem/pcieshark/include/pcapcie/filter.h \
+ /home/khadem/pcieshark/include/pcapcie/backend.h /usr/include/time.h \
  /usr/include/x86_64-linux-gnu/bits/time.h \
  /usr/include/x86_64-linux-gnu/bits/types/struct_tm.h \
  /usr/include/x86_64-linux-gnu/bits/types/struct_itimerspec.h

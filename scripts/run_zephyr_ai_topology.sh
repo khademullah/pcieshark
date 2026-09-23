@@ -12,8 +12,40 @@ QEMU_CONSOLE_PORT="${QEMU_CONSOLE_PORT:-4444}"
 RUN_TIMEOUT_SECONDS="${RUN_TIMEOUT_SECONDS:-0}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-TOPOLOGY_JSON="${TOPOLOGY_JSON:-${REPO_ROOT}/config/ai_golden_topology.json}"
+GOLDEN_JSON="${GOLDEN_JSON:-${REPO_ROOT}/config/ai_golden_topology.json}"
+TOPOLOGY_JSON="${TOPOLOGY_JSON:-${GOLDEN_JSON}}"
 GEN_QEMU_ARGS="${GEN_QEMU_ARGS:-${SCRIPT_DIR}/gen_qemu_args.py}"
+TRACE_LOG_DEFAULT="${PWD}/zephyr_ai_topology_trace.log"
+
+topology_realpath() {
+    if command -v realpath >/dev/null 2>&1; then
+        realpath -m "$1"
+    else
+        python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$1"
+    fi
+}
+
+GOLDEN_REAL="$(topology_realpath "$GOLDEN_JSON")"
+TOPO_REAL="$(topology_realpath "$TOPOLOGY_JSON")"
+TOPO_STEM="$(basename "$TOPOLOGY_JSON" .json)"
+
+if [[ -z "${TOPOLOGY_MODE:-}" ]]; then
+    if [[ "$TOPO_REAL" == "$GOLDEN_REAL" ]]; then
+        TOPOLOGY_MODE="zephyr-golden"
+    else
+        TOPOLOGY_MODE="json-file"
+    fi
+fi
+
+# Keep custom JSON traces out of the golden runner log unless the caller
+# already chose a destination.
+if [[ "${TRACE_LOG}" == "${TRACE_LOG_DEFAULT}" && "$TOPOLOGY_MODE" != "zephyr-golden" ]]; then
+    TRACE_LOG="${PWD}/zephyr_${TOPO_STEM}_trace.log"
+fi
+
+if [[ "${PCIE_LS_LOG}" == "${PWD}/zephyr_pcie_ls.log" && "$TOPOLOGY_MODE" != "zephyr-golden" ]]; then
+    PCIE_LS_LOG="${PWD}/zephyr_${TOPO_STEM}_pcie_ls.log"
+fi
 
 # Prefer a user-supplied path, then common local Zephyr build locations, then the
 # example firmware repo used for this PCIe topology.
@@ -31,7 +63,17 @@ if [[ ! -f "$KERNEL_PATH" ]]; then
     done
 fi
 
-printf '== Zephyr AI topology runner ==\n'
+printf '========================================\n'
+if [[ "$TOPOLOGY_MODE" == "zephyr-golden" ]]; then
+    printf ' Mode    : Zephyr golden runner\n'
+    printf ' Launcher: %s\n' "$0"
+    printf ' Fabric  : %s\n' "$TOPOLOGY_JSON"
+else
+    printf ' Mode    : Custom JSON topology\n'
+    printf ' File    : %s\n' "$TOPOLOGY_JSON"
+    printf ' Note    : QEMU is launched from the Zephyr script, but this is not the golden fabric\n'
+fi
+printf '========================================\n'
 
 if [[ ! -f "$ZEPHYR_VENV" ]]; then
     echo "Missing Zephyr virtualenv at: $ZEPHYR_VENV"
@@ -127,6 +169,12 @@ if [[ "$PCIE_LS_CAPTURE" == "1" ]]; then
     -serial chardev:console
     -monitor none
   )
+elif [[ ! -t 0 || "${PCIE_HEADLESS:-0}" == "1" ]]; then
+  # GUI/QProcess has no TTY; stdio chardev makes QEMU exit immediately.
+  QEMU_ARGS+=(
+    -serial "file:${PWD}/zephyr_qemu_console.log"
+    -monitor none
+  )
 else
   QEMU_ARGS+=(
     -chardev stdio,id=con,mux=on
@@ -142,7 +190,17 @@ QEMU_ARGS+=(
 )
 
 if [[ -f "$TOPOLOGY_JSON" && -f "$GEN_QEMU_ARGS" ]]; then
-  mapfile -t TOPO_ARGS < <(python3 "$GEN_QEMU_ARGS" "$TOPOLOGY_JSON")
+  mapfile -t TOPO_RAW < <(python3 "$GEN_QEMU_ARGS" "$TOPOLOGY_JSON")
+  TOPO_ARGS=()
+  for token in "${TOPO_RAW[@]}"; do
+    [[ -z "$token" ]] && continue
+    # Older generator printed "-device spec" on one line; keep that working.
+    if [[ "$token" == -device\ * || "$token" == -netdev\ * ]]; then
+      TOPO_ARGS+=("${token%% *}" "${token#* }")
+    else
+      TOPO_ARGS+=("$token")
+    fi
+  done
   if [[ ${#TOPO_ARGS[@]} -eq 0 ]]; then
     echo "Failed to generate QEMU topology args from $TOPOLOGY_JSON"
     exit 1
