@@ -8,6 +8,10 @@
   Open PCIe trace, enumeration, and analysis toolkit
 </p>
 
+<p align="center">
+  <a href="https://khademullah.github.io/pcieshark/">khademullah.github.io/pcieshark</a>
+</p>
+
 pcieshark is a developer-facing toolkit for building, inspecting, and validating PCIe traffic. It combines a reusable C library (`libpcapcie`), example programs, a Qt GUI, and Zephyr or Linux QEMU topology flows so the same stack works on real hardware and emulated fabrics.
 
 It is designed to be:

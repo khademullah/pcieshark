@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>pcieshark — PCIe trace, enumeration, and analysis</title>
+  <meta name="description" content="Open PCIe trace, enumeration, and analysis toolkit. C library, Qt GUI, and Zephyr or Linux QEMU topology flows.">
+  <meta property="og:title" content="pcieshark">
+  <meta property="og:description" content="Open PCIe trace, enumeration, and analysis toolkit.">
+  <meta property="og:image" content="docs/assets/logo-web.png">
+  <link rel="icon" type="image/svg+xml" href="docs/assets/logo.svg">
+  <link rel="apple-touch-icon" href="docs/assets/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --navy: #182028;
+      --navy-deep: #10151b;
+      --navy-raised: #222830;
+      --cyan: #00b0d0;
+      --cyan-dim: #007a90;
+      --gold: #e0b018;
+      --ink: #e8edf2;
+      --muted: #8b97a3;
+      --line: #2c343c;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--navy-deep);
+      color: var(--ink);
+      font-family: "IBM Plex Sans", system-ui, sans-serif;
+      line-height: 1.55;
+    }
+    a { color: var(--cyan); text-decoration: none; }
+    a:hover { color: #4dcee0; }
+
+    .wrap { width: min(1080px, calc(100% - 40px)); margin: 0 auto; }
+
+    nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--ink);
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+    .brand img { width: 36px; height: 36px; display: block; }
+    .nav-links { display: flex; gap: 22px; font-size: 14px; }
+    .nav-links a { color: var(--muted); }
+    .nav-links a:hover { color: var(--ink); }
+
+    .hero {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 48px;
+      align-items: center;
+      padding: 72px 0 56px;
+    }
+    .hero-mark {
+      width: 168px;
+      height: 168px;
+      border-radius: 50%;
+      box-shadow: 0 0 0 1px var(--line);
+    }
+    h1 {
+      margin: 0 0 10px;
+      font-size: 42px;
+      font-weight: 600;
+      letter-spacing: -0.03em;
+    }
+    .tag {
+      margin: 0 0 22px;
+      color: var(--muted);
+      font-size: 18px;
+      max-width: 38em;
+    }
+    .actions { display: flex; flex-wrap: wrap; gap: 12px; }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      padding: 9px 16px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    .btn-cyan {
+      background: var(--cyan);
+      border-color: var(--cyan);
+      color: var(--navy-deep);
+    }
+    .btn-cyan:hover { background: #33c0d8; color: var(--navy-deep); }
+    .btn-gold {
+      background: transparent;
+      border-color: var(--gold);
+      color: var(--gold);
+    }
+    .btn-gold:hover { background: rgba(224, 176, 24, 0.12); color: var(--gold); }
+
+    .trace {
+      height: 10px;
+      margin: 8px 0 48px;
+      background:
+        linear-gradient(90deg, transparent 0 4%, var(--gold) 4% 18%, transparent 18% 22%,
+          var(--gold) 22% 70%, transparent 70% 74%, var(--gold) 74% 96%, transparent 96%);
+      opacity: 0.55;
+    }
+
+    h2 {
+      margin: 0 0 14px;
+      font-size: 22px;
+      font-weight: 600;
+    }
+    section { padding: 8px 0 48px; }
+    .lead { color: var(--muted); margin: 0 0 22px; max-width: 46em; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+    article {
+      background: var(--navy);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px 16px 14px;
+    }
+    article h3 {
+      margin: 0 0 6px;
+      font-size: 15px;
+      color: var(--cyan);
+      font-weight: 500;
+    }
+    article p { margin: 0; color: var(--muted); font-size: 14px; }
+
+    .shots {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    figure { margin: 0; }
+    figure img {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--navy);
+      display: block;
+    }
+    figcaption { margin-top: 8px; color: var(--muted); font-size: 13px; }
+
+    .demo {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      display: block;
+      background: var(--navy);
+    }
+
+    pre {
+      margin: 0;
+      padding: 16px 18px;
+      background: var(--navy);
+      border: 1px solid var(--line);
+      border-left: 3px solid var(--gold);
+      border-radius: 8px;
+      overflow-x: auto;
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      font-size: 13px;
+      color: #d5dde4;
+    }
+
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      counter-reset: step;
+    }
+    .steps li {
+      list-style: none;
+      background: var(--navy);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .steps ol { margin: 0; padding: 0; display: contents; }
+    .steps li::before {
+      counter-increment: step;
+      content: counter(step, decimal-leading-zero);
+      display: block;
+      color: var(--gold);
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12px;
+      margin-bottom: 8px;
+    }
+
+    footer {
+      border-top: 1px solid var(--line);
+      padding: 22px 0 36px;
+      color: var(--muted);
+      font-size: 13px;
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    @media (max-width: 840px) {
+      .hero { grid-template-columns: 1fr; gap: 24px; padding-top: 40px; }
+      .hero-mark { width: 120px; height: 120px; }
+      .grid, .shots, .steps { grid-template-columns: 1fr; }
+      h1 { font-size: 32px; }
+      .nav-links { gap: 14px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <nav>
+      <a class="brand" href="#">
+        <img src="docs/assets/logo-web.png" alt="">
+        pcieshark
+      </a>
+      <div class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#gui">GUI</a>
+        <a href="#start">Start</a>
+        <a href="https://github.com/khademullah/pcieshark">GitHub</a>
+      </div>
+    </nav>
+
+    <header class="hero">
+      <img class="hero-mark" src="docs/assets/logo-web.png" alt="pcieshark logo">
+      <div>
+        <h1>pcieshark</h1>
+        <p class="tag">Open PCIe trace, enumeration, and analysis toolkit. Same stack on real devices and emulated fabrics.</p>
+        <div class="actions">
+          <a class="btn btn-cyan" href="https://github.com/khademullah/pcieshark">View on GitHub</a>
+          <a class="btn btn-gold" href="docs/assets/pcieshark_report.html">Sample analysis report</a>
+        </div>
+      </div>
+    </header>
+    <div class="trace" aria-hidden="true"></div>
+
+    <section id="features">
+      <h2>What it does</h2>
+      <p class="lead">A reusable C library, CLI tools, and a Qt GUI for building, inspecting, and validating PCIe traffic — without a closed vendor stack.</p>
+      <div class="grid">
+        <article>
+          <h3>TLP create and parse</h3>
+          <p>Build, decode, and filter configuration, memory, and completion packets.</p>
+        </article>
+        <article>
+          <h3>Trace review</h3>
+          <p>Open CSV, QEMU <code>pci_cfg_*</code> logs, or library captures. Match requests to completions.</p>
+        </article>
+        <article>
+          <h3>Live or offline GUI</h3>
+          <p>Packet table, payload hex, BDF decode, search, and HTML report export.</p>
+        </article>
+        <article>
+          <h3>PCI backend</h3>
+          <p>Read Linux sysfs config space on a real endpoint. Dummy backend for software-only work.</p>
+        </article>
+        <article>
+          <h3>QEMU topologies</h3>
+          <p>Shared golden AI fabric for Zephyr or Linux guests: root ports, switches, NVMe, GPU stand-ins, NICs.</p>
+        </article>
+        <article>
+          <h3>Measured cfg/s</h3>
+          <p>Emulator Measure times a real config-space walk of the deployed topology. No invented token rates.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="demo">
+      <h2>Demo</h2>
+      <p class="lead">AI PCIe emulator walkthrough: live TLPs, golden fabric enumeration, and performance status.</p>
+      <img class="demo" src="AI_PCIe_Emulator_optimized.gif" alt="pcieshark AI PCIe emulator demo">
+      <p class="lead" style="margin-top:12px"><a href="AI_PCIe_Emulator_optimized.mp4">Download MP4</a></p>
+    </section>
+
+    <section id="gui">
+      <h2>GUI</h2>
+      <p class="lead">Light and dark views of a live QEMU config-space trace, including Match analysis.</p>
+      <div class="shots">
+        <figure>
+          <img src="docs/assets/gui-trace-light.png" alt="pcieshark GUI in light theme">
+          <figcaption>Light — 1593 packets, 192 matched pairs, 0 unmatched</figcaption>
+        </figure>
+        <figure>
+          <img src="docs/assets/gui-trace-dark.png" alt="pcieshark GUI in dark theme">
+          <figcaption>Dark — same session, CfgWr selected</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section>
+      <h2>Workflows</h2>
+      <div class="steps">
+        <ol>
+          <li>Open a captured CSV, QEMU log, or <code>.pcie</code> file and inspect TLPs.</li>
+          <li>Run the Zephyr or Linux QEMU topology and review config-space traffic live.</li>
+          <li>Point the PCI backend at a real endpoint and check link capability data.</li>
+          <li>Export an HTML analysis: type counts, match summary, devices at config 0x00.</li>
+        </ol>
+      </div>
+    </section>
+
+    <section id="start">
+      <h2>Quick start</h2>
+      <p class="lead">Linux, CMake 3.13+, a C/C++ toolchain, and Qt 6 for the GUI.</p>
+      <pre>git clone git@github.com:khademullah/pcieshark.git
+cd pcieshark
+cmake -S . -B build
+cmake --build build -j$(nproc)
+./run_pcieshark.sh</pre>
+    </section>
+
+    <footer>
+      <span>MIT · <a href="https://github.com/khademullah/pcieshark">khademullah/pcieshark</a></span>
+      <span>FPGA and ARM DS backends are planned and untested.</span>
+    </footer>
+  </div>
+</body>
+</html>
