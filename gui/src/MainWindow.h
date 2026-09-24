@@ -57,9 +57,12 @@ private slots:
     void showPacketDetails();
     void updateSummaryStats();
     void updateAiPerformanceReadout();
+    void jumpToPairedPacket(const QModelIndex &index);
 
 private:
     void loadCsv(const QString &path);
+    bool loadCustomPcap(const QString &path);
+    void rebuildTraceAnalysis();
     QStringList splitCsvLine(const QString &line) const;
 
     QTableView *tableView;
@@ -69,6 +72,7 @@ private:
     QStandardItemModel *model;
     QComboBox *typeFilter;
     QComboBox *directionFilter;
+    QComboBox *analysisFilter;
     QComboBox *backendFilter;
     QLineEdit *deviceIdBox;
     QLineEdit *scenarioBox;
@@ -83,6 +87,7 @@ private:
     QLabel *txLabel;
     QLabel *rxLabel;
     QLabel *filteredLabel;
+    QLabel *unmatchedLabel;
     QLabel *aiPerformanceReadout;
     QWidget *fabricSizeBox;
     QDialog *aiEmulatorDialog;

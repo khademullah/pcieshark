@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 
 #define MAX_LINE 4096
 
@@ -9,11 +10,12 @@ static const char *pcie_type_name(const char *type)
     if (!type) {
         return "UNKNOWN";
     }
-    if (strcmp(type, "0") == 0) return "MemRd";
-    if (strcmp(type, "1") == 0) return "MemWr";
-    if (strcmp(type, "4") == 0) return "CfgRd";
-    if (strcmp(type, "5") == 0) return "CfgWr";
-    if (strcmp(type, "10") == 0) return "Cpl";
+    if (strcmp(type, "0") == 0 || strcasecmp(type, "MemRd") == 0 || strcasecmp(type, "MemRead") == 0) return "MemRd";
+    if (strcmp(type, "1") == 0 || strcasecmp(type, "MemWr") == 0 || strcasecmp(type, "MemWrite") == 0) return "MemWr";
+    if (strcmp(type, "4") == 0 || strcasecmp(type, "CfgRd") == 0 || strcasecmp(type, "CfgRead") == 0) return "CfgRd";
+    if (strcmp(type, "5") == 0 || strcasecmp(type, "CfgWr") == 0 || strcasecmp(type, "CfgWrite") == 0) return "CfgWr";
+    if (strcmp(type, "10") == 0 || strcasecmp(type, "Cpl") == 0 || strcasecmp(type, "CplD") == 0
+        || strcasecmp(type, "Completion") == 0) return "Cpl";
     return "Other";
 }
 
@@ -40,8 +42,11 @@ static void print_packet_list(FILE *fp, const char *path)
         if (!direction || !type || !timestamp) {
             continue;
         }
+        if (strncmp(timestamp, "timestamp", 9) == 0) {
+            continue;
+        }
 
-        printf("%d    %-15s %-9s %-6s %-6s %-5s %-4s %-8s %s\n",
+        printf("%d    %-15s %-9s %-6s %-6s %-5s %-4s %-4s %-8s %s\n",
                ++row,
                timestamp,
                direction,
@@ -82,7 +87,10 @@ static void print_summary(FILE *fp, const char *path)
         (void)timestamp; (void)requester; (void)completer; (void)tag;
         (void)length; (void)addr; (void)payload;
 
-        if (!direction || !type) {
+        if (!direction || !type || !timestamp) {
+            continue;
+        }
+        if (strncmp(timestamp, "timestamp", 9) == 0) {
             continue;
         }
 
@@ -93,15 +101,16 @@ static void print_summary(FILE *fp, const char *path)
             rx_count++;
         }
 
-        if (strcmp(type, "5") == 0) {
+        const char *named = pcie_type_name(type);
+        if (strcmp(named, "CfgWr") == 0) {
             cfg_write++;
-        } else if (strcmp(type, "4") == 0) {
+        } else if (strcmp(named, "CfgRd") == 0) {
             cfg_read++;
-        } else if (strcmp(type, "1") == 0) {
+        } else if (strcmp(named, "MemWr") == 0) {
             mem_write++;
-        } else if (strcmp(type, "0") == 0) {
+        } else if (strcmp(named, "MemRd") == 0) {
             mem_read++;
-        } else if (strcmp(type, "10") == 0) {
+        } else if (strcmp(named, "Cpl") == 0) {
             cpl++;
         }
     }

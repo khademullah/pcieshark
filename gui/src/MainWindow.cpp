@@ -27,9 +27,11 @@
 #include <QScrollArea>
 #include <QLocale>
 #include <QVector>
+#include <QHash>
 
 #include <algorithm>
 #include <cstdlib>
+#include <cstring>
 
 namespace {
 
@@ -650,6 +652,88 @@ QString formatTopologyPciList(const QJsonObject &topo)
     return lines.join('\n');
 }
 
+constexpr int kPairRole = Qt::UserRole + 21;
+
+bool isRequestType(const QString &type)
+{
+    return type.compare(QLatin1String("CfgRd"), Qt::CaseInsensitive) == 0
+        || type.compare(QLatin1String("MemRd"), Qt::CaseInsensitive) == 0
+        || type.compare(QLatin1String("MemRead"), Qt::CaseInsensitive) == 0
+        || type.compare(QLatin1String("CfgRead"), Qt::CaseInsensitive) == 0;
+}
+
+bool isCompletionType(const QString &type)
+{
+    return type.compare(QLatin1String("Cpl"), Qt::CaseInsensitive) == 0
+        || type.compare(QLatin1String("CplD"), Qt::CaseInsensitive) == 0
+        || type.compare(QLatin1String("Completion"), Qt::CaseInsensitive) == 0;
+}
+
+uint16_t parsePciId(const QString &text)
+{
+    static const QRegularExpression bdfRe(
+        QStringLiteral(R"((?:([0-9A-Fa-f]{4}):)?([0-9A-Fa-f]{2}):([0-9A-Fa-f]{2})\.([0-9A-Fa-f]))"));
+    const QRegularExpressionMatch match = bdfRe.match(text.trimmed());
+    if (match.hasMatch()) {
+        const uint16_t bus = static_cast<uint16_t>(match.captured(2).toUInt(nullptr, 16));
+        const uint16_t dev = static_cast<uint16_t>(match.captured(3).toUInt(nullptr, 16));
+        const uint16_t fn = static_cast<uint16_t>(match.captured(4).toUInt(nullptr, 16));
+        return static_cast<uint16_t>((bus << 8) | (dev << 3) | fn);
+    }
+    bool ok = false;
+    const uint16_t value = static_cast<uint16_t>(text.trimmed().toUInt(&ok, 0));
+    return ok ? value : 0;
+}
+
+QString normalizeAddrKey(const QString &addr)
+{
+    bool ok = false;
+    const qulonglong value = addr.trimmed().toULongLong(&ok, 0);
+    return ok ? QString::number(value) : addr.trimmed().toLower();
+}
+
+bool idsOverlap(const QString &reqRequester,
+                const QString &reqCompleter,
+                const QString &cplRequester,
+                const QString &cplCompleter)
+{
+    return reqRequester == cplRequester
+        || reqCompleter == cplRequester
+        || reqRequester == cplCompleter
+        || reqCompleter == cplCompleter;
+}
+
+QList<QStandardItem *> makeTraceItems(const QString &ts,
+                                      const QString &direction,
+                                      const QString &type,
+                                      const QString &requester,
+                                      const QString &completer,
+                                      const QString &tag,
+                                      const QString &length,
+                                      const QString &addr,
+                                      const QString &payload,
+                                      const QString &role = QString())
+{
+    auto *payloadItem = new QStandardItem(payload);
+    if (!role.isEmpty()) {
+        payloadItem->setToolTip(role);
+    }
+    auto *matchItem = new QStandardItem(QStringLiteral("—"));
+    matchItem->setData(-1, kPairRole);
+    return {
+        new QStandardItem(ts),
+        new QStandardItem(direction),
+        new QStandardItem(type),
+        new QStandardItem(requester),
+        new QStandardItem(completer),
+        new QStandardItem(tag),
+        new QStandardItem(length),
+        new QStandardItem(addr),
+        payloadItem,
+        matchItem
+    };
+}
+
 void appendTlpRow(QStandardItemModel *model,
                   const QString &direction,
                   const QString &type,
@@ -662,22 +746,10 @@ void appendTlpRow(QStandardItemModel *model,
 {
     const QString ts = QString::number(QDateTime::currentMSecsSinceEpoch())
         + QString(".%1").arg(model->rowCount());
-    auto *payloadItem = new QStandardItem(payload);
-    if (!role.isEmpty()) {
-        payloadItem->setToolTip(role);
-    }
-    const QList<QStandardItem *> items = {
-        new QStandardItem(ts),
-        new QStandardItem(direction),
-        new QStandardItem(type),
-        new QStandardItem(requester),
-        new QStandardItem(completer),
-        new QStandardItem(QString::number(tag)),
-        new QStandardItem(payload.isEmpty() ? QStringLiteral("0") : QStringLiteral("4")),
-        new QStandardItem(addr),
-        payloadItem
-    };
-    model->appendRow(items);
+    model->appendRow(makeTraceItems(
+        ts, direction, type, requester, completer, QString::number(tag),
+        payload.isEmpty() ? QStringLiteral("0") : QStringLiteral("4"),
+        addr, payload, role));
 }
 
 struct TopologyNode {
@@ -771,6 +843,7 @@ MainWindow::MainWindow(QWidget *parent)
     themeButton = new QPushButton("Dark", this);
     typeFilter = new QComboBox(this);
     directionFilter = new QComboBox(this);
+    analysisFilter = new QComboBox(this);
     backendFilter = new QComboBox(this);
     deviceIdBox = new QLineEdit(this);
     scenarioBox = new QLineEdit(this);
@@ -780,6 +853,7 @@ MainWindow::MainWindow(QWidget *parent)
     txLabel = new QLabel("TX: 0", this);
     rxLabel = new QLabel("RX: 0", this);
     filteredLabel = new QLabel("Visible: 0", this);
+    unmatchedLabel = new QLabel("Unmatched: 0", this);
 
     typeFilter->addItem("All types");
     typeFilter->addItem("CfgRd");
@@ -791,6 +865,10 @@ MainWindow::MainWindow(QWidget *parent)
     directionFilter->addItem("All directions");
     directionFilter->addItem("TX");
     directionFilter->addItem("RX");
+
+    analysisFilter->addItem("All packets");
+    analysisFilter->addItem("Unmatched");
+    analysisFilter->addItem("Matched pairs");
 
     backendFilter->addItem("pci");
     backendFilter->addItem("golden");
@@ -807,7 +885,7 @@ MainWindow::MainWindow(QWidget *parent)
     scenarioBox->setPlaceholderText("gen8x16, latency=250ns, tps=250000");
     scenarioBox->setText("gen8x16,latency=250ns,tps=250000,burst=16,jitter=50ns");
     scenarioBox->hide();
-    searchBox->setPlaceholderText("Filter by requester ID or address");
+    searchBox->setPlaceholderText("Search type, BDF, tag, address, or payload");
 
     toolbar->addWidget(openButton);
     toolbar->addWidget(saveButton);
@@ -820,6 +898,8 @@ MainWindow::MainWindow(QWidget *parent)
     filterbar->addWidget(typeFilter);
     filterbar->addWidget(new QLabel("Direction:", this));
     filterbar->addWidget(directionFilter);
+    filterbar->addWidget(new QLabel("Analysis:", this));
+    filterbar->addWidget(analysisFilter);
     filterbar->addWidget(searchBox, 1);
 
     QWidget *statsWidget = new QWidget(this);
@@ -831,21 +911,25 @@ MainWindow::MainWindow(QWidget *parent)
     txLabel->setFrameShape(QFrame::StyledPanel);
     rxLabel->setFrameShape(QFrame::StyledPanel);
     filteredLabel->setFrameShape(QFrame::StyledPanel);
+    unmatchedLabel->setFrameShape(QFrame::StyledPanel);
 
     totalLabel->setAlignment(Qt::AlignCenter);
     txLabel->setAlignment(Qt::AlignCenter);
     rxLabel->setAlignment(Qt::AlignCenter);
     filteredLabel->setAlignment(Qt::AlignCenter);
+    unmatchedLabel->setAlignment(Qt::AlignCenter);
 
     totalLabel->setMinimumWidth(120);
     txLabel->setMinimumWidth(120);
     rxLabel->setMinimumWidth(120);
     filteredLabel->setMinimumWidth(140);
+    unmatchedLabel->setMinimumWidth(150);
 
     statsLayout->addWidget(totalLabel);
     statsLayout->addWidget(txLabel);
     statsLayout->addWidget(rxLabel);
     statsLayout->addWidget(filteredLabel);
+    statsLayout->addWidget(unmatchedLabel);
 
     tableView = new QTableView(this);
     detailsView = new QTextEdit(this);
@@ -875,7 +959,8 @@ MainWindow::MainWindow(QWidget *parent)
         "Tag",
         "Length",
         "Addr",
-        "Payload"
+        "Payload",
+        "Match"
     });
 
     tableView->setModel(model);
@@ -910,6 +995,7 @@ MainWindow::MainWindow(QWidget *parent)
     txLabel->setObjectName("summaryCard");
     rxLabel->setObjectName("summaryCard");
     filteredLabel->setObjectName("summaryCard");
+    unmatchedLabel->setObjectName("summaryCard");
 
     connect(openButton, &QPushButton::clicked, this, &MainWindow::openTrace);
     connect(saveButton, &QPushButton::clicked, this, &MainWindow::saveTrace);
@@ -921,9 +1007,11 @@ MainWindow::MainWindow(QWidget *parent)
     });
     connect(typeFilter, &QComboBox::currentTextChanged, this, &MainWindow::applyFilter);
     connect(directionFilter, &QComboBox::currentTextChanged, this, &MainWindow::applyFilter);
+    connect(analysisFilter, &QComboBox::currentTextChanged, this, &MainWindow::applyFilter);
     connect(searchBox, &QLineEdit::textChanged, this, &MainWindow::applyFilter);
     connect(tableView->selectionModel(), &QItemSelectionModel::currentRowChanged,
             this, &MainWindow::showPacketDetails);
+    connect(tableView, &QTableView::doubleClicked, this, &MainWindow::jumpToPairedPacket);
 }
 
 void MainWindow::applyTheme()
@@ -1240,6 +1328,9 @@ void MainWindow::loadTraceFile(const QString &path)
     if (path.isEmpty()) {
         return;
     }
+    if (loadCustomPcap(path)) {
+        return;
+    }
     loadCsv(path);
 }
 
@@ -1377,22 +1468,13 @@ void MainWindow::pollLiveTrace()
         }
 
         liveTraceSeen.insert(line);
-        const QList<QStandardItem *> items = {
-            new QStandardItem(ts),
-            new QStandardItem(dir),
-            new QStandardItem(type),
-            new QStandardItem(requester),
-            new QStandardItem(completer),
-            new QStandardItem(tag),
-            new QStandardItem(length),
-            new QStandardItem(addr),
-            new QStandardItem(payload)
-        };
-        model->insertRow(model->rowCount(), items);
+        model->insertRow(model->rowCount(),
+                         makeTraceItems(ts, dir, type, requester, completer, tag, length, addr, payload));
         ++added;
     }
 
     if (added > 0) {
+        rebuildTraceAnalysis();
         applyFilter();
         if (model->rowCount() > 0) {
             tableView->selectRow(model->rowCount() - 1);
@@ -1424,8 +1506,8 @@ void MainWindow::saveTrace()
     const QString path = QFileDialog::getSaveFileName(
         this,
         "Save PCIe trace",
-        QStringLiteral("pcie_trace.log"),
-        "Trace files (*.log *.txt *.csv);;CSV files (*.csv);;All files (*.*)");
+        QStringLiteral("pcie_trace.csv"),
+        "CSV traces (*.csv);;QEMU logs (*.log *.txt);;All files (*.*)");
 
     if (path.isEmpty()) {
         return;
@@ -1438,31 +1520,45 @@ void MainWindow::saveTrace()
     }
 
     QTextStream out(&file);
+    const bool asLog = path.endsWith(QLatin1String(".log"), Qt::CaseInsensitive)
+        || path.endsWith(QLatin1String(".txt"), Qt::CaseInsensitive);
+    if (!asLog) {
+        out << "timestamp_ns,direction,type,requester_id,completer_id,tag,length,addr,payload\n";
+    }
     for (int row = 0; row < model->rowCount(); ++row) {
+        const QString ts = model->item(row, 0) ? model->item(row, 0)->text() : QString();
         const QString direction = model->item(row, 1) ? model->item(row, 1)->text() : QString();
         const QString type = model->item(row, 2) ? model->item(row, 2)->text() : QString();
         const QString requester = model->item(row, 3) ? model->item(row, 3)->text() : QString();
         const QString completer = model->item(row, 4) ? model->item(row, 4)->text() : QString();
+        const QString tag = model->item(row, 5) ? model->item(row, 5)->text() : QString();
+        const QString length = model->item(row, 6) ? model->item(row, 6)->text() : QString();
         const QString addr = model->item(row, 7) ? model->item(row, 7)->text() : QString();
         const QString payload = model->item(row, 8) ? model->item(row, 8)->text() : QString();
-        const QString op = (type == "CfgWr" || direction == "TX") ? "write" : "read";
-        const QString arrow = (op == "write") ? "<-" : "->";
 
-        if (addr.isEmpty()) {
+        if (asLog) {
+            if (addr.isEmpty()) {
+                continue;
+            }
+            const QString op = (type == "CfgWr" || direction == "TX") ? "write" : "read";
+            const QString arrow = (op == "write") ? "<-" : "->";
+            out << QString("pci_cfg_%1 %2 %3 @%4 %5 %6\n")
+                    .arg(op, requester, completer, addr, arrow, payload);
             continue;
         }
 
-        out << QString("pci_cfg_%1 %2 %3 @%4 %5 %6\n")
-            .arg(op)
-            .arg(requester)
-            .arg(completer)
-            .arg(addr)
-            .arg(arrow)
-            .arg(payload);
+        QString escaped = payload;
+        escaped.replace('"', "\"\"");
+        if (escaped.contains(',') || escaped.contains('"')) {
+            escaped = QString("\"%1\"").arg(escaped);
+        }
+        out << ts << ',' << direction << ',' << type << ','
+            << requester << ',' << completer << ',' << tag << ','
+            << length << ',' << addr << ',' << escaped << '\n';
     }
 
     file.close();
-    statusLabel->setText(QString("Saved %1 trace entries to %2").arg(model->rowCount()).arg(path));
+    statusLabel->setText(QString("Saved %1 TLP entries to %2").arg(model->rowCount()).arg(path));
 }
 
 QStringList MainWindow::splitCsvLine(const QString &line) const
@@ -1505,7 +1601,7 @@ bool parseRawTraceLine(const QString &line,
                        QString *payload)
 {
     static const QRegularExpression re(
-        QStringLiteral(R"(^pci_cfg_(?<op>read|write)\s+(?<dev>[A-Za-z0-9_.-]+)\s+(?<bdf>[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}\.[0-9A-Fa-f])\s+@(?<offset>0x[0-9A-Fa-f]+)\s*(?<arrow>->|<-)\s*(?<value>0x[0-9A-Fa-f]+)\s*$)"));
+        QStringLiteral(R"(^(?:(?<ts>\d+(?:\.\d+)?)\s*:\s*)?pci_cfg_(?<op>read|write)\s+(?<dev>[A-Za-z0-9_.-]+)\s+(?<bdf>(?:[0-9A-Fa-f]{4}:)?[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}\.[0-9A-Fa-f])\s+@(?<offset>0x[0-9A-Fa-f]+)\s*(?<arrow>->|<-)\s*(?<value>0x[0-9A-Fa-f]+)\s*$)"));
 
     const QRegularExpressionMatch match = re.match(line.trimmed());
     if (!match.hasMatch()) {
@@ -1518,7 +1614,10 @@ bool parseRawTraceLine(const QString &line,
     const QString offset = match.captured("offset");
     const QString value = match.captured("value");
 
-    *ts = QString::number(QDateTime::currentMSecsSinceEpoch());
+    *ts = match.captured("ts");
+    if (ts->isEmpty()) {
+        *ts = QString::number(QDateTime::currentMSecsSinceEpoch());
+    }
     *direction = (op == "write") ? QStringLiteral("TX") : QStringLiteral("RX");
     *type = (op == "write") ? QStringLiteral("CfgWr") : QStringLiteral("CfgRd");
     *requester = device;
@@ -1583,18 +1682,7 @@ void MainWindow::loadCsv(const QString &path)
             const QString addr = fields.at(7).trimmed();
             const QString payload = fields.at(8).trimmed();
 
-            const QList<QStandardItem *> items = {
-                new QStandardItem(ts),
-                new QStandardItem(dir),
-                new QStandardItem(type),
-                new QStandardItem(requester),
-                new QStandardItem(completer),
-                new QStandardItem(tag),
-                new QStandardItem(length),
-                new QStandardItem(addr),
-                new QStandardItem(payload)
-            };
-            model->insertRow(row, items);
+            model->insertRow(row, makeTraceItems(ts, dir, type, requester, completer, tag, length, addr, payload));
             ++row;
             continue;
         }
@@ -1604,27 +1692,229 @@ void MainWindow::loadCsv(const QString &path)
             continue;
         }
 
-        const QList<QStandardItem *> items = {
-            new QStandardItem(ts),
-            new QStandardItem(dir),
-            new QStandardItem(type),
-            new QStandardItem(requester),
-            new QStandardItem(completer),
-            new QStandardItem(tag),
-            new QStandardItem(length),
-            new QStandardItem(addr),
-            new QStandardItem(payload)
-        };
-        model->insertRow(row, items);
+        model->insertRow(row, makeTraceItems(ts, dir, type, requester, completer, tag, length, addr, payload));
         ++row;
     }
 
+    rebuildTraceAnalysis();
     applyFilter();
     if (model->rowCount() > 0) {
         tableView->selectRow(0);
     }
     updateSummaryStats();
     statusLabel->setText(QString("Loaded %1 TLP entries from %2").arg(row).arg(path));
+}
+
+void MainWindow::rebuildTraceAnalysis()
+{
+    if (!model) {
+        return;
+    }
+
+    const int rows = model->rowCount();
+    QVector<int> pending;
+    pending.reserve(rows);
+
+    for (int row = 0; row < rows; ++row) {
+        auto *matchItem = model->item(row, 9);
+        if (!matchItem) {
+            matchItem = new QStandardItem(QStringLiteral("—"));
+            model->setItem(row, 9, matchItem);
+        }
+        matchItem->setText(QStringLiteral("—"));
+        matchItem->setData(-1, kPairRole);
+        matchItem->setToolTip(QString());
+    }
+
+    auto rowType = [this](int row) {
+        return model->index(row, 2).data().toString();
+    };
+    auto hasPayload = [this](int row) {
+        return !model->index(row, 8).data().toString().trimmed().isEmpty();
+    };
+
+    for (int row = 0; row < rows; ++row) {
+        const QString type = rowType(row);
+        if (isRequestType(type)) {
+            if (hasPayload(row)) {
+                auto *matchItem = model->item(row, 9);
+                if (matchItem) {
+                    matchItem->setText(QStringLiteral("complete"));
+                    matchItem->setToolTip(QStringLiteral(
+                        "This config access already includes the returned DWORD. "
+                        "QEMU pci_cfg logs are not split into a separate Cpl."));
+                }
+                continue;
+            }
+            pending.append(row);
+            continue;
+        }
+        if (!isCompletionType(type)) {
+            continue;
+        }
+
+        const QString cplTag = model->index(row, 5).data().toString();
+        const QString cplAddr = normalizeAddrKey(model->index(row, 7).data().toString());
+        const QString cplReq = model->index(row, 3).data().toString();
+        const QString cplCpl = model->index(row, 4).data().toString();
+
+        int match = -1;
+        for (int i = 0; i < pending.size(); ++i) {
+            const int reqRow = pending.at(i);
+            const QString reqTag = model->index(reqRow, 5).data().toString();
+            const QString reqAddr = normalizeAddrKey(model->index(reqRow, 7).data().toString());
+            const QString reqReq = model->index(reqRow, 3).data().toString();
+            const QString reqCpl = model->index(reqRow, 4).data().toString();
+            if (reqTag != cplTag) {
+                continue;
+            }
+            if (!reqAddr.isEmpty() && !cplAddr.isEmpty() && reqAddr != cplAddr) {
+                continue;
+            }
+            if (!idsOverlap(reqReq, reqCpl, cplReq, cplCpl)) {
+                continue;
+            }
+            match = reqRow;
+            pending.removeAt(i);
+            break;
+        }
+
+        if (match < 0) {
+            continue;
+        }
+
+        auto *reqMatch = model->item(match, 9);
+        auto *cplMatch = model->item(row, 9);
+        if (reqMatch) {
+            reqMatch->setText(QString("#%1").arg(row + 1));
+            reqMatch->setData(row, kPairRole);
+            reqMatch->setToolTip(QStringLiteral("Completion at packet %1").arg(row + 1));
+        }
+        if (cplMatch) {
+            cplMatch->setText(QString("#%1").arg(match + 1));
+            cplMatch->setData(match, kPairRole);
+            cplMatch->setToolTip(QStringLiteral("Request at packet %1").arg(match + 1));
+        }
+    }
+
+    for (int reqRow : pending) {
+        auto *matchItem = model->item(reqRow, 9);
+        if (matchItem) {
+            matchItem->setText(QStringLiteral("unmatched"));
+            matchItem->setToolTip(QStringLiteral("No matching completion (Cpl)"));
+        }
+    }
+}
+
+bool MainWindow::loadCustomPcap(const QString &path)
+{
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        return false;
+    }
+
+    QByteArray header = file.read(28);
+    if (header.size() < 28) {
+        return false;
+    }
+
+    const auto u32 = [](const QByteArray &buf, int off) {
+        const auto *p = reinterpret_cast<const uchar *>(buf.constData() + off);
+        return static_cast<quint32>(p[0] | (p[1] << 8) | (p[2] << 16) | (p[3] << 24));
+    };
+    const quint32 magic = u32(header, 0);
+    if (magic != 0xa1b2c3d4U && magic != 0xd4c3b2a1U) {
+        return false;
+    }
+
+    model->removeRows(0, model->rowCount());
+    int row = 0;
+    while (!file.atEnd()) {
+        const QByteArray pktHdr = file.read(16);
+        if (pktHdr.size() < 16) {
+            break;
+        }
+        const quint32 tsSec = u32(pktHdr, 0);
+        const quint32 tsUsec = u32(pktHdr, 4);
+        const quint32 inclLen = u32(pktHdr, 8);
+        if (inclLen == 0 || inclLen > 4096) {
+            return row > 0;
+        }
+        const QByteArray body = file.read(inclLen);
+        if (body.size() < static_cast<int>(inclLen) || body.size() < 20) {
+            break;
+        }
+
+        int off = 0;
+        const quint8 direction = static_cast<quint8>(body.at(off++));
+        const quint8 typeCode = static_cast<quint8>(body.at(off++));
+        quint16 requester = 0;
+        quint16 completer = 0;
+        memcpy(&requester, body.constData() + off, 2);
+        off += 2;
+        memcpy(&completer, body.constData() + off, 2);
+        off += 2;
+        const quint8 tag = static_cast<quint8>(body.at(off++));
+        quint16 length = 0;
+        memcpy(&length, body.constData() + off, 2);
+        off += 2;
+        quint64 addr = 0;
+        memcpy(&addr, body.constData() + off, 8);
+        off += 8;
+        const QByteArray payload = body.mid(off);
+        QString payloadHex;
+        const int n = qMin(payload.size(), length > 0 ? static_cast<int>(length) : payload.size());
+        for (int i = 0; i < n; ++i) {
+            payloadHex += QString("%1").arg(static_cast<unsigned char>(payload.at(i)), 2, 16, QLatin1Char('0'));
+            if (i + 1 < n) {
+                payloadHex += ' ';
+            }
+        }
+
+        const QString ts = QString::number(static_cast<qulonglong>(tsSec) * 1000000000ULL
+                                           + static_cast<qulonglong>(tsUsec) * 1000ULL);
+        model->insertRow(row, makeTraceItems(
+            ts,
+            (direction == 2) ? QStringLiteral("RX") : QStringLiteral("TX"),
+            sanitizeType(QString::number(typeCode)),
+            QString::number(requester),
+            QString::number(completer),
+            QString::number(tag),
+            QString::number(length),
+            QString("0x%1").arg(addr, 0, 16),
+            payloadHex));
+        ++row;
+    }
+
+    if (row == 0) {
+        return false;
+    }
+
+    rebuildTraceAnalysis();
+    applyFilter();
+    if (model->rowCount() > 0) {
+        tableView->selectRow(0);
+    }
+    updateSummaryStats();
+    statusLabel->setText(QString("Loaded %1 TLP entries from %2").arg(row).arg(path));
+    return true;
+}
+
+void MainWindow::jumpToPairedPacket(const QModelIndex &index)
+{
+    if (!index.isValid() || !model) {
+        return;
+    }
+    auto *matchItem = model->item(index.row(), 9);
+    if (!matchItem) {
+        return;
+    }
+    const int pair = matchItem->data(kPairRole).toInt();
+    if (pair < 0 || pair >= model->rowCount()) {
+        return;
+    }
+    tableView->selectRow(pair);
+    tableView->scrollTo(model->index(pair, 0));
 }
 
 QString MainWindow::findRepoPath(const QStringList &relativeCandidates) const
@@ -2003,6 +2293,7 @@ void MainWindow::injectFabricEnumerationPackets()
                           ep.value("label").toString(ep.value("display").toString("endpoint")));
     }
 
+    rebuildTraceAnalysis();
     applyFilter();
     if (model->rowCount() > 0) {
         tableView->selectRow(0);
@@ -2103,23 +2394,16 @@ void MainWindow::enumeratePciDevice()
         }
 
         const QString ts = QString::number(QDateTime::currentMSecsSinceEpoch());
-        const QList<QStandardItem *> items = {
-            new QStandardItem(ts),
-            new QStandardItem("TX"),
-            new QStandardItem("CfgRd"),
-            new QStandardItem("1"),
-            new QStandardItem("0"),
-            new QStandardItem("15"),
-            new QStandardItem("4"),
-            new QStandardItem(QString("0x%1").arg(enumAddrs[i], 0, 16)),
-            new QStandardItem(payloadHex)
-        };
-
-        model->insertRow(static_cast<int>(i), items);
+        model->insertRow(static_cast<int>(i),
+                         makeTraceItems(ts, QStringLiteral("TX"), QStringLiteral("CfgRd"),
+                                        QStringLiteral("1"), QStringLiteral("0"),
+                                        QStringLiteral("15"), QStringLiteral("4"),
+                                        QString("0x%1").arg(enumAddrs[i], 0, 16), payloadHex));
     }
 
     pcie_close(ctx);
 
+    rebuildTraceAnalysis();
     applyFilter();
     if (model->rowCount() > 0) {
         tableView->selectRow(0);
@@ -2564,15 +2848,14 @@ void MainWindow::applyFilter()
 {
     const QString type = typeFilter->currentText();
     const QString direction = directionFilter->currentText();
-    const QString text = searchBox->text().trimmed();
+    const QString analysis = analysisFilter ? analysisFilter->currentText() : QStringLiteral("All packets");
+    const QString text = searchBox->text().trimmed().toLower();
 
     for (int row = 0; row < model->rowCount(); ++row) {
         bool visible = true;
         const QString rowType = model->index(row, 2).data().toString();
         const QString rowDirection = model->index(row, 1).data().toString();
-        const QString rowText = (rowType + " " +
-                                 model->index(row, 3).data().toString() + " " +
-                                 model->index(row, 7).data().toString()).toLower();
+        const int pair = model->item(row, 9) ? model->item(row, 9)->data(kPairRole).toInt() : -1;
 
         if (type != "All types" && rowType != type) {
             visible = false;
@@ -2582,8 +2865,21 @@ void MainWindow::applyFilter()
             visible = false;
         }
 
-        if (!text.isEmpty() && !rowText.contains(text.toLower())) {
-            visible = false;
+        if (analysis == QLatin1String("Unmatched")) {
+            visible = visible && model->index(row, 9).data().toString() == QLatin1String("unmatched");
+        } else if (analysis == QLatin1String("Matched pairs")) {
+            visible = visible && pair >= 0;
+        }
+
+        if (!text.isEmpty()) {
+            QString haystack;
+            for (int col = 0; col < model->columnCount(); ++col) {
+                haystack += model->index(row, col).data().toString();
+                haystack += ' ';
+            }
+            if (!haystack.toLower().contains(text)) {
+                visible = false;
+            }
         }
 
         tableView->setRowHidden(row, !visible);
@@ -2637,12 +2933,26 @@ void MainWindow::updateSummaryStats()
     int tx = 0;
     int rx = 0;
     int visible = 0;
+    int unmatched = 0;
+    int cfgRd = 0;
+    int cpl = 0;
 
     for (int row = 0; row < model->rowCount(); ++row) {
-        if (model->index(row, 1).data().toString() == "TX") {
+        const QString direction = model->index(row, 1).data().toString();
+        const QString type = model->index(row, 2).data().toString();
+        const QString matchText = model->index(row, 9).data().toString();
+        if (direction == "TX") {
             tx++;
-        } else if (model->index(row, 1).data().toString() == "RX") {
+        } else if (direction == "RX") {
             rx++;
+        }
+        if (isRequestType(type)) {
+            ++cfgRd;
+        } else         if (isCompletionType(type)) {
+            ++cpl;
+        }
+        if (matchText == QLatin1String("unmatched")) {
+            ++unmatched;
         }
 
         total++;
@@ -2655,6 +2965,12 @@ void MainWindow::updateSummaryStats()
     txLabel->setText(QString("TX: %1").arg(tx));
     rxLabel->setText(QString("RX: %1").arg(rx));
     filteredLabel->setText(QString("Visible: %1").arg(visible));
+    if (unmatchedLabel) {
+        unmatchedLabel->setText(QString("Unmatched: %1  ·  CfgRd/MemRd %2  ·  Cpl %3")
+                                    .arg(unmatched)
+                                    .arg(cfgRd)
+                                    .arg(cpl));
+    }
 }
 
 void MainWindow::colorRows()
@@ -2664,6 +2980,7 @@ void MainWindow::colorRows()
     for (int row = 0; row < model->rowCount(); ++row) {
         const QString direction = model->index(row, 1).data().toString();
         const QString type = model->index(row, 2).data().toString();
+        const QString matchText = model->index(row, 9).data().toString();
         const bool isSelected = hasSelection && tableView->currentIndex().row() == row;
 
         QColor bgColor = darkMode ? QColor("#17263a") : QColor("#f4f6fb");
@@ -2692,6 +3009,9 @@ void MainWindow::colorRows()
             } else if (type == "Cpl") {
                 bgColor = QColor("#2e3459");
             }
+            if (matchText == QLatin1String("unmatched")) {
+                bgColor = QColor("#5b2a2a");
+            }
         } else {
             if (direction == "TX") {
                 bgColor = QColor("#eaf4ff");
@@ -2709,6 +3029,9 @@ void MainWindow::colorRows()
                 bgColor = QColor("#fff8eb");
             } else if (type == "Cpl") {
                 bgColor = QColor("#f2f0ff");
+            }
+            if (matchText == QLatin1String("unmatched")) {
+                bgColor = QColor("#fde8e8");
             }
         }
 
@@ -2742,10 +3065,12 @@ void MainWindow::showPacketDetails()
     const QString lengthText = model->index(row, 6).data().toString();
     const QString addrText = model->index(row, 7).data().toString();
     const QString payload = model->index(row, 8).data().toString();
+    const int pairRow = model->item(row, 9) ? model->item(row, 9)->data(kPairRole).toInt() : -1;
+    const QString pairLabel = model->index(row, 9).data().toString();
 
     const uint8_t typeCode = tlpCodeFromName(typeText);
-    const uint16_t requesterId = static_cast<uint16_t>(requester.toUInt(nullptr, 0));
-    const uint16_t completerId = static_cast<uint16_t>(completer.toUInt(nullptr, 0));
+    const uint16_t requesterId = parsePciId(requester);
+    const uint16_t completerId = parsePciId(completer);
     const uint8_t tagValue = static_cast<uint8_t>(tag.toUInt());
     const uint16_t lengthValue = static_cast<uint16_t>(lengthText.toUInt());
     const uint64_t addrValue = static_cast<uint64_t>(addrText.toULongLong(nullptr, 16));
@@ -2760,11 +3085,20 @@ void MainWindow::showPacketDetails()
     details += QString("Packet #%1\n").arg(row + 1);
     details += QString("Timestamp: %1\n").arg(timestamp);
     details += QString("Direction: %1\n").arg(direction);
-    details += QString("Type: %1 (%2)\n\n").arg(typeName, typeText);
+    details += QString("Type: %1 (%2)\n").arg(typeName, typeText);
+    if (pairRow >= 0) {
+        details += QString("Paired packet: #%1 (double-click Match to jump)\n\n").arg(pairRow + 1);
+    } else if (pairLabel == QLatin1String("unmatched")) {
+        details += QStringLiteral("Paired packet: none (unmatched request)\n\n");
+    } else if (pairLabel == QLatin1String("complete")) {
+        details += QStringLiteral("Match: complete — QEMU logged the config read and its returned DWORD on one line.\n\n");
+    } else {
+        details += QStringLiteral("\n");
+    }
     details += QString("Header fields:\n");
     details += QString("  - type: %1\n").arg(typeName);
-    details += QString("  - requester_id: %1\n").arg(requester);
-    details += QString("  - completer_id: %1\n").arg(completer);
+    details += QString("  - requester_id: %1 (0x%2)\n").arg(requester, makeHexLabel(requesterId, 4));
+    details += QString("  - completer_id: %1 (0x%2)\n").arg(completer, makeHexLabel(completerId, 4));
     details += QString("  - tag: %1\n").arg(decoded.tag);
     details += QString("  - length: %1\n").arg(decoded.length);
     details += QString("  - address: 0x%1\n").arg(decoded.mem.addr, 0, 16);
@@ -2782,16 +3116,28 @@ void MainWindow::showPacketDetails()
 
     addField("Direction", direction);
     addField("Type", QString("%1 (%2)").arg(typeName, typeText));
-    addField("Requester ID", requester);
-    addField("Completer ID", completer);
+    addField("Requester ID", QString("%1 (0x%2)").arg(requester, makeHexLabel(requesterId, 4)));
+    addField("Completer ID", QString("%1 (0x%2)").arg(completer, makeHexLabel(completerId, 4)));
+    addField("RID", QString("bus %1 dev %2 fn %3")
+                         .arg((requesterId >> 8) & 0xff, 2, 16, QLatin1Char('0'))
+                         .arg((requesterId >> 3) & 0x1f, 2, 16, QLatin1Char('0'))
+                         .arg(requesterId & 0x7));
+    addField("Match", pairRow >= 0 ? QString("packet #%1").arg(pairRow + 1) : pairLabel);
     addField("Tag", tag);
     addField("Length", lengthText);
     addField("Address", QString("0x%1").arg(addrValue, 0, 16));
     addField("Payload length", QString::number(payload.isEmpty() ? 0 : payload.size()));
     addField("Payload", payload.isEmpty() ? "<none>" : payload);
 
-    if ((typeText == "CfgRd" || typeText == "CfgWr") && !payload.isEmpty()) {
-        QString normalizedPayload = payload;
+    QString decodePayload = payload;
+    if (decodePayload.trimmed().isEmpty() && pairRow >= 0) {
+        decodePayload = model->index(pairRow, 8).data().toString();
+    }
+    const bool canDecodeConfig = (typeText == "CfgRd" || typeText == "CfgWr" || typeText == "Cpl"
+                                  || typeText == "CplD" || typeText == "Completion")
+        && !decodePayload.trimmed().isEmpty();
+    if (canDecodeConfig) {
+        QString normalizedPayload = decodePayload;
         normalizedPayload.remove(' ');
         normalizedPayload.remove('\t');
         normalizedPayload.remove('\n');

@@ -225,7 +225,14 @@ int pcie_trace_write_csv(pcie_ctx_t *ctx, const char *path)
         size_t payload_len = 0;
 
         payload_hex[0] = '\0';
-        for (size_t j = 0; j < sizeof(rec->payload) && rec->payload[j] != 0; ++j) {
+        size_t nbytes = rec->length < sizeof(rec->payload) ? rec->length : sizeof(rec->payload);
+        if (nbytes == 0) {
+            nbytes = sizeof(rec->payload);
+            while (nbytes > 0 && rec->payload[nbytes - 1] == 0) {
+                --nbytes;
+            }
+        }
+        for (size_t j = 0; j < nbytes; ++j) {
             payload_len += (size_t)snprintf(payload_hex + payload_len,
                                            sizeof(payload_hex) - payload_len,
                                            "%02x",

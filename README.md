@@ -137,9 +137,13 @@ The GUI can open and save traces, show packet details, filter rows, and run topo
 
 ## Trace workflow
 
-- **Open** a captured trace in the GUI and inspect packets in the table view.
-- **Save** the active trace for later comparison or replay.
-- **Inspect a row** for timestamp, direction, TLP type, requester ID, and payload metadata.
+- **Open** a captured CSV, QEMU `pci_cfg_*` log, or library pcap (`.pcie`) in the GUI.
+- **Save** the active table as CSV (default) so it reloads with the same columns.
+- **Inspect a row** for header fields, BDF/RID decode, payload hex, and PCI config meaning.
+- **Match** CfgRd/MemRd requests to Cpl completions (double-click the Match column to jump).
+- Filter by type, direction, unmatched/matched, or full-text search across every column.
+
+The stats bar reports TX/RX, visible rows, unmatched requests, and CfgRd vs Cpl counts.
 
 CLI mode uses the same product name:
 
