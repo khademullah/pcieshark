@@ -50,6 +50,7 @@ public:
 private slots:
     void openTrace();
     void saveTrace();
+    void exportTraceReport();
     void pollLiveTrace();
     void enumeratePciDevice();
     void openAiPerfDialog();

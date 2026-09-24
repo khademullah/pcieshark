@@ -57,7 +57,7 @@ PCIe bring-up usually needs a mix of raw trace inspection, config-space enumerat
 - `gui/` — Qt desktop application
 - `scripts/` — QEMU helpers for Zephyr and Linux guests
 - `pcieshark/` — product notes for the CLI and GUI front-end
-- `docs/assets/` — project artwork
+- `docs/assets/` — logo, GUI screenshots, and a sample analysis report
 
 ## Supported workflows
 
@@ -142,6 +142,7 @@ The GUI can open and save traces, show packet details, filter rows, and run topo
 - **Inspect a row** for header fields, BDF/RID decode, payload hex, and PCI config meaning.
 - **Match** CfgRd/MemRd requests to Cpl completions (double-click the Match column to jump).
 - Filter by type, direction, unmatched/matched, or full-text search across every column.
+- **Export report** writes an HTML analysis of the open trace: type counts, match summary, devices seen at config offset `0x00`, and unmatched requests. A sample from the golden fabric is in [docs/assets/pcieshark_report.html](docs/assets/pcieshark_report.html).
 
 The stats bar reports TX/RX, visible rows, unmatched requests, and CfgRd vs Cpl counts.
 
@@ -287,9 +288,18 @@ if (pcie_check_link_target(ctx, PCIE_GEN_5, 1, &pass) == 0 && pass) {
 The Qt application focuses on readable packet inspection:
 
 - open / save traces
-- packet table and row metadata
+- packet table, match analysis, and row metadata
+- HTML analysis report export
 - live versus captured traffic
 - optional topology enumeration logs, kept separate from the main TLP view
+
+Light and dark views of a live QEMU config-space trace, including Match analysis (`complete` for one-line `pci_cfg` accesses):
+
+![pcieshark GUI light](docs/assets/gui-trace-light.png)
+
+![pcieshark GUI dark](docs/assets/gui-trace-dark.png)
+
+Example analysis report from that session: [pcieshark_report.html](docs/assets/pcieshark_report.html).
 
 ## Release status
 

@@ -64,6 +64,8 @@ For the GUI workflow:
 ./build/gui/pcieshark
 ```
 
+Screenshots of the packet table, Match column, and light/dark themes are in [docs/assets](../docs/assets/). A sample HTML analysis report is [pcieshark_report.html](../docs/assets/pcieshark_report.html).
+
 ## Relationship to libpcapcie
 
 pcieshark is not a replacement for the library. It is the user-facing analysis layer built on top of libpcapcie.

@@ -28,6 +28,9 @@
 #include <QLocale>
 #include <QVector>
 #include <QHash>
+#include <QMap>
+#include <QDesktopServices>
+#include <QUrl>
 
 #include <algorithm>
 #include <cstdlib>
@@ -685,6 +688,30 @@ uint16_t parsePciId(const QString &text)
     return ok ? value : 0;
 }
 
+bool payloadToDword(const QString &payload, uint32_t *out)
+{
+    QString normalized = payload;
+    normalized.remove(' ');
+    normalized.remove('\t');
+    const QByteArray raw = QByteArray::fromHex(normalized.toLatin1());
+    if (raw.size() < 4 || !out) {
+        return false;
+    }
+    uint32_t value = 0;
+    for (int i = 0; i < 4; ++i) {
+        value |= static_cast<uint32_t>(static_cast<unsigned char>(raw.at(i))) << (8 * i);
+    }
+    *out = value;
+    return true;
+}
+
+bool looksLikeBdf(const QString &text)
+{
+    static const QRegularExpression bdfRe(
+        QStringLiteral(R"(^(?:[0-9A-Fa-f]{4}:)?[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}\.[0-9A-Fa-f]$)"));
+    return bdfRe.match(text.trimmed()).hasMatch();
+}
+
 QString normalizeAddrKey(const QString &addr)
 {
     bool ok = false;
@@ -838,6 +865,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     openButton = new QPushButton("Open trace", this);
     saveButton = new QPushButton("Save trace", this);
+    auto *reportButton = new QPushButton("Export report", this);
     enumerateButton = new QPushButton("Enumerate PCI", this);
     aiPerfButton = new QPushButton("AI PCIe Emulator", this);
     themeButton = new QPushButton("Dark", this);
@@ -889,6 +917,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     toolbar->addWidget(openButton);
     toolbar->addWidget(saveButton);
+    toolbar->addWidget(reportButton);
     toolbar->addWidget(enumerateButton);
     toolbar->addWidget(aiPerfButton);
     toolbar->addWidget(themeButton);
@@ -930,6 +959,12 @@ MainWindow::MainWindow(QWidget *parent)
     statsLayout->addWidget(rxLabel);
     statsLayout->addWidget(filteredLabel);
     statsLayout->addWidget(unmatchedLabel);
+
+    auto *matchLegend = new QLabel(
+        "Match: #N = request/completion pair   ·   complete = QEMU one-line cfg access   ·   unmatched = missing Cpl   ·   — = no pair expected",
+        this);
+    matchLegend->setObjectName("statusLabel");
+    matchLegend->setWordWrap(true);
 
     tableView = new QTableView(this);
     detailsView = new QTextEdit(this);
@@ -979,6 +1014,7 @@ MainWindow::MainWindow(QWidget *parent)
     layout->addLayout(toolbar);
     layout->addLayout(filterbar);
     layout->addWidget(statsWidget);
+    layout->addWidget(matchLegend);
     layout->addWidget(splitter);
     layout->addWidget(statusLabel);
 
@@ -999,6 +1035,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     connect(openButton, &QPushButton::clicked, this, &MainWindow::openTrace);
     connect(saveButton, &QPushButton::clicked, this, &MainWindow::saveTrace);
+    connect(reportButton, &QPushButton::clicked, this, &MainWindow::exportTraceReport);
     connect(enumerateButton, &QPushButton::clicked, this, &MainWindow::enumeratePciDevice);
     connect(aiPerfButton, &QPushButton::clicked, this, &MainWindow::openAiPerfDialog);
     connect(themeButton, &QPushButton::clicked, this, [this]() {
@@ -1559,6 +1596,153 @@ void MainWindow::saveTrace()
 
     file.close();
     statusLabel->setText(QString("Saved %1 TLP entries to %2").arg(model->rowCount()).arg(path));
+}
+
+void MainWindow::exportTraceReport()
+{
+    if (!model || model->rowCount() == 0) {
+        QMessageBox::information(this, "Export report", "There is no trace to report yet.");
+        return;
+    }
+
+    const QString path = QFileDialog::getSaveFileName(
+        this,
+        "Export analysis report",
+        QStringLiteral("pcieshark_report.html"),
+        "HTML report (*.html);;All files (*.*)");
+    if (path.isEmpty()) {
+        return;
+    }
+
+    int tx = 0, rx = 0, cfgRd = 0, cfgWr = 0, memRd = 0, memWr = 0, cpl = 0;
+    int matched = 0, complete = 0, unmatched = 0;
+    QStringList unmatchedRows;
+    QMap<QString, QString> devices;
+
+    for (int row = 0; row < model->rowCount(); ++row) {
+        const QString direction = model->index(row, 1).data().toString();
+        const QString type = model->index(row, 2).data().toString();
+        const QString requester = model->index(row, 3).data().toString();
+        const QString completer = model->index(row, 4).data().toString();
+        const QString addr = normalizeAddrKey(model->index(row, 7).data().toString());
+        const QString payload = model->index(row, 8).data().toString();
+        const QString match = model->index(row, 9).data().toString();
+
+        if (direction == QLatin1String("TX")) {
+            ++tx;
+        } else if (direction == QLatin1String("RX")) {
+            ++rx;
+        }
+        if (type == QLatin1String("CfgRd") || type == QLatin1String("CfgRead")) {
+            ++cfgRd;
+        } else if (type == QLatin1String("CfgWr") || type == QLatin1String("CfgWrite")) {
+            ++cfgWr;
+        } else if (type == QLatin1String("MemRd") || type == QLatin1String("MemRead")) {
+            ++memRd;
+        } else if (type == QLatin1String("MemWr") || type == QLatin1String("MemWrite")) {
+            ++memWr;
+        } else if (isCompletionType(type)) {
+            ++cpl;
+        }
+
+        if (match.startsWith(QLatin1Char('#'))) {
+            ++matched;
+        } else if (match == QLatin1String("complete")) {
+            ++complete;
+        } else if (match == QLatin1String("unmatched")) {
+            ++unmatched;
+            if (unmatchedRows.size() < 40) {
+                unmatchedRows << QString("#%1  %2  %3 → %4  %5")
+                                   .arg(row + 1)
+                                   .arg(type, requester, completer, model->index(row, 7).data().toString());
+            }
+        }
+
+        uint32_t dword = 0;
+        if (addr == QLatin1String("0") && payloadToDword(payload, &dword)) {
+            const QString bdf = looksLikeBdf(completer) ? completer
+                : (looksLikeBdf(requester) ? requester : completer);
+            if (!bdf.isEmpty() && !devices.contains(bdf)) {
+                const uint16_t vendor = static_cast<uint16_t>(dword & 0xffff);
+                const uint16_t device = static_cast<uint16_t>((dword >> 16) & 0xffff);
+                devices.insert(bdf, QString("%1  %2 %3")
+                                       .arg(pciVendorName(vendor),
+                                            makeHexLabel(vendor, 4),
+                                            makeHexLabel(device, 4)));
+            }
+        }
+    }
+
+    const QString topoName = currentTopology.value("topology_name").toString();
+    QString deviceRows;
+    for (auto it = devices.constBegin(); it != devices.constEnd(); ++it) {
+        deviceRows += QString("<tr><td>%1</td><td>%2</td></tr>\n")
+                          .arg(it.key().toHtmlEscaped(), it.value().toHtmlEscaped());
+    }
+    if (deviceRows.isEmpty()) {
+        deviceRows = QStringLiteral("<tr><td colspan='2'>No vendor/device DWORDs at offset 0x00 in this trace.</td></tr>");
+    }
+
+    QString unmatchedHtml;
+    if (unmatchedRows.isEmpty()) {
+        unmatchedHtml = QStringLiteral("<p>No unmatched requests.</p>");
+    } else {
+        unmatchedHtml = QStringLiteral("<pre>") + unmatchedRows.join('\n').toHtmlEscaped() + QStringLiteral("</pre>");
+        if (unmatched > unmatchedRows.size()) {
+            unmatchedHtml += QString("<p>%1 more unmatched rows not listed.</p>").arg(unmatched - unmatchedRows.size());
+        }
+    }
+
+    const QString html = QStringLiteral(
+        "<!DOCTYPE html><html><head><meta charset='utf-8'>"
+        "<title>pcieshark analysis report</title>"
+        "<style>body{font-family:system-ui,sans-serif;margin:32px;color:#111}"
+        "h1{font-size:22px}table{border-collapse:collapse;margin:12px 0}"
+        "td,th{border:1px solid #ccc;padding:6px 10px;text-align:left}"
+        "th{background:#f3f4f6} .muted{color:#555}</style></head><body>"
+        "<h1>pcieshark analysis report</h1>"
+        "<p class='muted'>Generated %1</p>"
+        "<p>Topology: %2</p>"
+        "<h2>Summary</h2>"
+        "<table>"
+        "<tr><th>Total</th><td>%3</td></tr>"
+        "<tr><th>TX / RX</th><td>%4 / %5</td></tr>"
+        "<tr><th>CfgRd / CfgWr</th><td>%6 / %7</td></tr>"
+        "<tr><th>MemRd / MemWr</th><td>%8 / %9</td></tr>"
+        "<tr><th>Completions</th><td>%10</td></tr>"
+        "<tr><th>Matched pairs</th><td>%11</td></tr>"
+        "<tr><th>Complete (in-line)</th><td>%12</td></tr>"
+        "<tr><th>Unmatched</th><td>%13</td></tr>"
+        "</table>"
+        "<p class='muted'>Match: #N = request/completion pair. "
+        "complete = QEMU one-line config access. unmatched = missing Cpl.</p>"
+        "<h2>Devices seen (config offset 0x00)</h2>"
+        "<table><tr><th>BDF</th><th>Vendor / device</th></tr>%14</table>"
+        "<h2>Unmatched requests</h2>%15"
+        "</body></html>")
+        .arg(QDateTime::currentDateTime().toString(Qt::ISODate),
+             (topoName.isEmpty() ? QStringLiteral("none") : topoName).toHtmlEscaped())
+        .arg(model->rowCount())
+        .arg(tx).arg(rx)
+        .arg(cfgRd).arg(cfgWr)
+        .arg(memRd).arg(memWr)
+        .arg(cpl)
+        .arg(matched / 2)
+        .arg(complete)
+        .arg(unmatched)
+        .arg(deviceRows, unmatchedHtml);
+
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QMessageBox::critical(this, "Export failed", "Unable to write report: " + path);
+        return;
+    }
+    QTextStream out(&file);
+    out << html;
+    file.close();
+
+    QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+    statusLabel->setText(QString("Exported analysis report to %1").arg(path));
 }
 
 QStringList MainWindow::splitCsvLine(const QString &line) const
