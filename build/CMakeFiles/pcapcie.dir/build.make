@@ -170,24 +170,10 @@ CMakeFiles/pcapcie.dir/src/backend_armds.c.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling C source to assembly CMakeFiles/pcapcie.dir/src/backend_armds.c.s"
 	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -S /home/khadem/pcieshark/src/backend_armds.c -o CMakeFiles/pcapcie.dir/src/backend_armds.c.s
 
-CMakeFiles/pcapcie.dir/src/backend_xgig.c.o: CMakeFiles/pcapcie.dir/flags.make
-CMakeFiles/pcapcie.dir/src/backend_xgig.c.o: /home/khadem/pcieshark/src/backend_xgig.c
-CMakeFiles/pcapcie.dir/src/backend_xgig.c.o: CMakeFiles/pcapcie.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/khadem/pcieshark/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_8) "Building C object CMakeFiles/pcapcie.dir/src/backend_xgig.c.o"
-	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -MD -MT CMakeFiles/pcapcie.dir/src/backend_xgig.c.o -MF CMakeFiles/pcapcie.dir/src/backend_xgig.c.o.d -o CMakeFiles/pcapcie.dir/src/backend_xgig.c.o -c /home/khadem/pcieshark/src/backend_xgig.c
-
-CMakeFiles/pcapcie.dir/src/backend_xgig.c.i: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing C source to CMakeFiles/pcapcie.dir/src/backend_xgig.c.i"
-	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -E /home/khadem/pcieshark/src/backend_xgig.c > CMakeFiles/pcapcie.dir/src/backend_xgig.c.i
-
-CMakeFiles/pcapcie.dir/src/backend_xgig.c.s: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling C source to assembly CMakeFiles/pcapcie.dir/src/backend_xgig.c.s"
-	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -S /home/khadem/pcieshark/src/backend_xgig.c -o CMakeFiles/pcapcie.dir/src/backend_xgig.c.s
-
 CMakeFiles/pcapcie.dir/src/backend_pci.c.o: CMakeFiles/pcapcie.dir/flags.make
 CMakeFiles/pcapcie.dir/src/backend_pci.c.o: /home/khadem/pcieshark/src/backend_pci.c
 CMakeFiles/pcapcie.dir/src/backend_pci.c.o: CMakeFiles/pcapcie.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/khadem/pcieshark/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_9) "Building C object CMakeFiles/pcapcie.dir/src/backend_pci.c.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/khadem/pcieshark/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_8) "Building C object CMakeFiles/pcapcie.dir/src/backend_pci.c.o"
 	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -MD -MT CMakeFiles/pcapcie.dir/src/backend_pci.c.o -MF CMakeFiles/pcapcie.dir/src/backend_pci.c.o.d -o CMakeFiles/pcapcie.dir/src/backend_pci.c.o -c /home/khadem/pcieshark/src/backend_pci.c
 
 CMakeFiles/pcapcie.dir/src/backend_pci.c.i: cmake_force
@@ -207,7 +193,6 @@ pcapcie_OBJECTS = \
 "CMakeFiles/pcapcie.dir/src/backend_dummy.c.o" \
 "CMakeFiles/pcapcie.dir/src/backend_fpga.c.o" \
 "CMakeFiles/pcapcie.dir/src/backend_armds.c.o" \
-"CMakeFiles/pcapcie.dir/src/backend_xgig.c.o" \
 "CMakeFiles/pcapcie.dir/src/backend_pci.c.o"
 
 # External object files for target pcapcie
@@ -220,11 +205,10 @@ libpcapcie.a: CMakeFiles/pcapcie.dir/src/pcie_topology.c.o
 libpcapcie.a: CMakeFiles/pcapcie.dir/src/backend_dummy.c.o
 libpcapcie.a: CMakeFiles/pcapcie.dir/src/backend_fpga.c.o
 libpcapcie.a: CMakeFiles/pcapcie.dir/src/backend_armds.c.o
-libpcapcie.a: CMakeFiles/pcapcie.dir/src/backend_xgig.c.o
 libpcapcie.a: CMakeFiles/pcapcie.dir/src/backend_pci.c.o
 libpcapcie.a: CMakeFiles/pcapcie.dir/build.make
 libpcapcie.a: CMakeFiles/pcapcie.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/khadem/pcieshark/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_10) "Linking C static library libpcapcie.a"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/khadem/pcieshark/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_9) "Linking C static library libpcapcie.a"
 	$(CMAKE_COMMAND) -P CMakeFiles/pcapcie.dir/cmake_clean_target.cmake
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/pcapcie.dir/link.txt --verbose=$(VERBOSE)
 

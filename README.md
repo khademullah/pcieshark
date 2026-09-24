@@ -42,7 +42,7 @@ PCIe bring-up usually needs a mix of raw trace inspection, config-space enumerat
 - Configuration-space read/write
 - TLP filtering and sniffing hooks
 - Link and topology inspection
-- Backends for PCI, dummy, FPGA, ARM DS, and similar targets
+- Backends for PCI and dummy (FPGA and ARM DS are planned)
 - Trace capture and export (pcap-style or CSV)
 - Qt GUI for live or offline packet browsing
 - Zephyr and Linux QEMU topology execution for enumeration-style work
@@ -231,50 +231,23 @@ Use a real PCIe endpoint with Express capability data. A host bridge or virtuali
 
 ## Supported backends
 
+These are the backends used and tested in this release:
+
 - `dummy` — deterministic software-only mock
 - `pci` — Linux sysfs PCI config space
-- `fpga` — FPGA-oriented path
-- `armds` — ARM DS bridge style path
-- `xgig` — external vendor-style path
 
-## Example usage
+### Planned backends
 
-```c
-pcie_ctx_t *ctx = pcie_open("pci");
-if (!ctx) {
-    fprintf(stderr, "Failed to open backend\n");
-    return 1;
-}
+The following backends exist in the tree but are **not tested** and are not part of the current product. They may be enabled after hardware bring-up:
 
-pcie_tlp_t cfg_rd = pcie_tlp_cfg_read(0x0);
-cfg_rd.requester_id = 0x0001;
+- `fpga` — FPGA BAR / register path (`src/backend_fpga.c`, see `FPGA_CONFIG.md`)
+- `armds` — ARM Development Studio bridge (`src/backend_armds.c`, see `ARM_DS_BRIDGE_README.md`)
 
-pcie_send(ctx, &cfg_rd);
-pcie_close(ctx);
-```
+Do not select these from the GUI. They remain in the tree for later hardware bring-up.
 
 ## Link capability checks
 
-The library can inspect PCIe capability blocks and report max/negotiated link speed, width, and generation.
-
-```c
-pcie_link_status_t status = {0};
-if (pcie_get_link_status(ctx, &status) == 0) {
-    printf("Max link speed: %s\n",
-           pcie_link_speed_name(status.max_link_speed));
-    printf("Negotiated generation: %s\n",
-           pcie_gen_name(status.negotiated_gen));
-}
-```
-
-Minimum-target helper:
-
-```c
-int pass = 0;
-if (pcie_check_link_target(ctx, PCIE_GEN_5, 1, &pass) == 0 && pass) {
-    printf("Link meets the minimum Gen 5 x1 requirement\n");
-}
-```
+The library can inspect PCIe capability blocks and report max/negotiated link speed, width, and generation. Use `./build/pci_link_check`, `./build/pci_link_status`, or `./build/pci_link_matrix` against a real endpoint.
 
 ## Trace capture and export
 

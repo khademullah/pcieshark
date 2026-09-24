@@ -7,8 +7,6 @@ file(REMOVE_RECURSE
   "CMakeFiles/pcapcie.dir/src/backend_fpga.c.o.d"
   "CMakeFiles/pcapcie.dir/src/backend_pci.c.o"
   "CMakeFiles/pcapcie.dir/src/backend_pci.c.o.d"
-  "CMakeFiles/pcapcie.dir/src/backend_xgig.c.o"
-  "CMakeFiles/pcapcie.dir/src/backend_xgig.c.o.d"
   "CMakeFiles/pcapcie.dir/src/filter.c.o"
   "CMakeFiles/pcapcie.dir/src/filter.c.o.d"
   "CMakeFiles/pcapcie.dir/src/pcapcie.c.o"

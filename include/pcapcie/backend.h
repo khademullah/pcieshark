@@ -22,7 +22,6 @@ const pcie_backend_ops_t *pcie_backend_dummy(void);
 const pcie_backend_ops_t *pcie_backend_golden(void);
 const pcie_backend_ops_t *pcie_backend_fpga(void);
 const pcie_backend_ops_t *pcie_backend_armds(void);
-const pcie_backend_ops_t *pcie_backend_xgig(void);
 const pcie_backend_ops_t *pcie_backend_pci(void);
 
 #ifdef __cplusplus

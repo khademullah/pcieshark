@@ -899,11 +899,7 @@ MainWindow::MainWindow(QWidget *parent)
     analysisFilter->addItem("Matched pairs");
 
     backendFilter->addItem("pci");
-    backendFilter->addItem("golden");
     backendFilter->addItem("dummy");
-    backendFilter->addItem("fpga");
-    backendFilter->addItem("armds");
-    backendFilter->addItem("xgig");
     backendFilter->setCurrentText("pci");
     backendFilter->hide();
 

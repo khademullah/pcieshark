@@ -11,7 +11,7 @@ int main(int argc, char *argv[])
 
     if (argc < 2) {
         fprintf(stderr, "Usage: %s <backend> [trace_file] [format]\n", argv[0]);
-        fprintf(stderr, "Backends: dummy, fpga, armds, xgig, pci\n");
+        fprintf(stderr, "Backends: dummy, pci\n");
         fprintf(stderr, "Example: %s pci /tmp/pcie_trace.csv csv\n", argv[0]);
         return 1;
     }

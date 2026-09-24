@@ -560,30 +560,6 @@ src/backend_pci.c.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/pcapcie.dir/build.make CMakeFiles/pcapcie.dir/src/backend_pci.c.s
 .PHONY : src/backend_pci.c.s
 
-src/backend_xgig.o: src/backend_xgig.c.o
-.PHONY : src/backend_xgig.o
-
-# target to build an object file
-src/backend_xgig.c.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/pcapcie.dir/build.make CMakeFiles/pcapcie.dir/src/backend_xgig.c.o
-.PHONY : src/backend_xgig.c.o
-
-src/backend_xgig.i: src/backend_xgig.c.i
-.PHONY : src/backend_xgig.i
-
-# target to preprocess a source file
-src/backend_xgig.c.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/pcapcie.dir/build.make CMakeFiles/pcapcie.dir/src/backend_xgig.c.i
-.PHONY : src/backend_xgig.c.i
-
-src/backend_xgig.s: src/backend_xgig.c.s
-.PHONY : src/backend_xgig.s
-
-# target to generate assembly for a file
-src/backend_xgig.c.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/pcapcie.dir/build.make CMakeFiles/pcapcie.dir/src/backend_xgig.c.s
-.PHONY : src/backend_xgig.c.s
-
 src/filter.o: src/filter.c.o
 .PHONY : src/filter.o
 
@@ -736,9 +712,6 @@ help:
 	@echo "... src/backend_pci.o"
 	@echo "... src/backend_pci.i"
 	@echo "... src/backend_pci.s"
-	@echo "... src/backend_xgig.o"
-	@echo "... src/backend_xgig.i"
-	@echo "... src/backend_xgig.s"
 	@echo "... src/filter.o"
 	@echo "... src/filter.i"
 	@echo "... src/filter.s"

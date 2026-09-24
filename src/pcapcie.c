@@ -86,15 +86,15 @@ pcie_ctx_t *pcie_open(const char *backend_name)
         strcmp(backend_name, "golden-standard") == 0 || strcmp(backend_name, "golden_standard") == 0) {
         ctx->backend = pcie_backend_golden();
     } else if (strcmp(backend_name, "fpga") == 0) {
+        pcie_log(PCIE_LOG_WARN, "Backend 'fpga' is planned and untested");
         ctx->backend = pcie_backend_fpga();
     } else if (strcmp(backend_name, "armds") == 0) {
+        pcie_log(PCIE_LOG_WARN, "Backend 'armds' is planned and untested");
         ctx->backend = pcie_backend_armds();
-    } else if (strcmp(backend_name, "xgig") == 0) {
-        ctx->backend = pcie_backend_xgig();
     } else if (strcmp(backend_name, "pci") == 0) {
         ctx->backend = pcie_backend_pci();
     } else {
-        pcie_log(PCIE_LOG_ERROR, "Unknown backend '%s'. Supported: golden, dummy, fpga, armds, xgig, pci", backend_name);
+        pcie_log(PCIE_LOG_ERROR, "Unknown backend '%s'. Current: dummy, pci. Planned: fpga, armds", backend_name);
         free(ctx);
         return NULL;
     }

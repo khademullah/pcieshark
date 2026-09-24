@@ -17,7 +17,6 @@ add_library(pcapcie
     src/backend_dummy.c
     src/backend_fpga.c
     src/backend_armds.c
-    src/backend_xgig.c
     src/backend_pci.c
 )
 

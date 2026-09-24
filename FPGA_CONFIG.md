@@ -1,5 +1,7 @@
 # FPGA PCIe TLP Backend Configuration
 
+> **Planned / untested.** This backend is not part of the current release. The source stays in `src/backend_fpga.c` for later hardware bring-up.
+
 This guide shows how to configure the FPGA backend for your specific FPGA board to send and receive PCIe TLPs.
 
 ## Current FPGA Backend Setup

@@ -1,5 +1,7 @@
 # ARM Development Studio PCIe TLP Bridge
 
+> **Planned / untested.** This backend is not part of the current release. The source stays in `src/backend_armds.c` for later hardware bring-up.
+
 This setup allows you to send PCIe TLPs from libpcapcie to your FPGA through ARM Development Studio.
 
 ## Architecture

@@ -9,7 +9,7 @@ void on_mem_read(pcie_tlp_t *t, void *user)
 
 int main(void)
 {
-    pcie_ctx_t *ctx = pcie_open("fpga");
+    pcie_ctx_t *ctx = pcie_open("dummy");
     
 
     unsigned long rx_cb_count = 0;
