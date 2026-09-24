@@ -206,16 +206,11 @@ The same built-in golden fabric is attached as QEMU `-device` arguments for eith
 The Zephyr script checks the venv, source tree, SDK, QEMU binary, and kernel image, then starts the emulated topology. Override paths with `ZEPHYR_BASE`, `ZEPHYR_SDK_INSTALL_DIR`, and `KERNEL_PATH` as needed.
 
 ```bash
-# aarch64 virt (same machine family as Zephyr)
-ARCH=aarch64 KERNEL_PATH=/path/to/Image INITRD_PATH=/path/to/initrd.img \
-  ./scripts/run_linux_ai_topology.sh
-
-# x86_64 q35
-ARCH=x86_64 DISK_IMAGE=/path/to/linux.qcow2 \
-  ./scripts/run_linux_ai_topology.sh
+./scripts/run_linux_ai_topology.sh
+DISK_IMAGE=/path/to/linux.qcow2 ./scripts/run_linux_ai_topology.sh
 ```
 
-The Linux script uses host `qemu-system-aarch64` or `qemu-system-x86_64`, enables KVM when `/dev/kvm` is available, and fails clearly if no disk or kernel is provided. In the GUI, pick **Linux QEMU runner** in the AI emulator to use this path.
+The Linux runner is `qemu-system-x86_64` on q35 with `-vga none` and the same golden `-device` fabric. It uses `linux-guest.qcow2` in the repo if present. In the GUI, pick **Linux QEMU runner** in the AI emulator to use this path.
 
 ## PCI backend notes
 

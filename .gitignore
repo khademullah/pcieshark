@@ -5,5 +5,7 @@ build/
 *.so.*
 *.exe
 *.log
+*.qcow2
+linux-guest.qcow2
 .vscode/
 .DS_Store

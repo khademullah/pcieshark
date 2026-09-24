@@ -14,32 +14,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # shellcheck source=qemu_topology_lib.sh
 source "${SCRIPT_DIR}/qemu_topology_lib.sh"
-TOPOLOGY_JSON="${TOPOLOGY_JSON:-}"
-GEN_QEMU_ARGS="${GEN_QEMU_ARGS:-${SCRIPT_DIR}/gen_qemu_args.py}"
-TRACE_LOG_DEFAULT="${PWD}/zephyr_ai_topology_trace.log"
-TOPO_STEM="golden"
-
-if [[ -n "$TOPOLOGY_JSON" && -f "$TOPOLOGY_JSON" ]]; then
-    TOPO_STEM="$(basename "$TOPOLOGY_JSON" .json)"
-    if [[ -z "${TOPOLOGY_MODE:-}" ]]; then
-        TOPOLOGY_MODE="json-file"
-    fi
-else
-    TOPOLOGY_JSON=""
-    if [[ -z "${TOPOLOGY_MODE:-}" ]]; then
-        TOPOLOGY_MODE="zephyr-golden"
-    fi
-fi
-
-# Keep custom JSON traces out of the golden runner log unless the caller
-# already chose a destination.
-if [[ "${TRACE_LOG}" == "${TRACE_LOG_DEFAULT}" && "$TOPOLOGY_MODE" != "zephyr-golden" ]]; then
-    TRACE_LOG="${PWD}/zephyr_${TOPO_STEM}_trace.log"
-fi
-
-if [[ "${PCIE_LS_LOG}" == "${PWD}/zephyr_pcie_ls.log" && "$TOPOLOGY_MODE" != "zephyr-golden" ]]; then
-    PCIE_LS_LOG="${PWD}/zephyr_${TOPO_STEM}_pcie_ls.log"
-fi
+TOPOLOGY_MODE="${TOPOLOGY_MODE:-zephyr-golden}"
 
 # Prefer a user-supplied path, then common local Zephyr build locations, then the
 # example firmware repo used for this PCIe topology.
@@ -58,14 +33,8 @@ if [[ ! -f "$KERNEL_PATH" ]]; then
 fi
 
 printf '========================================\n'
-if [[ "$TOPOLOGY_MODE" == "zephyr-golden" ]]; then
-    printf ' Mode    : Zephyr golden runner\n'
-    printf ' Fabric  : built-in golden topology\n'
-else
-    printf ' Mode    : Custom JSON topology\n'
-    printf ' File    : %s\n' "$TOPOLOGY_JSON"
-    printf ' Note    : QEMU is launched from the Zephyr script, but this is not the golden fabric\n'
-fi
+printf ' Mode    : Zephyr golden runner\n'
+printf ' Fabric  : built-in golden topology\n'
 printf '========================================\n'
 
 if [[ ! -f "$ZEPHYR_VENV" ]]; then
@@ -114,11 +83,7 @@ printf 'Using ZEPHYR_BASE=%s\n' "$ZEPHYR_BASE"
 printf 'Using ZEPHYR_SDK_INSTALL_DIR=%s\n' "$ZEPHYR_SDK_INSTALL_DIR"
 printf 'Using QEMU=%s\n' "$QEMU_BIN"
 printf 'Using KERNEL=%s\n' "$KERNEL_PATH"
-if [[ -n "$TOPOLOGY_JSON" ]]; then
-  printf 'Topology file: %s\n' "$TOPOLOGY_JSON"
-else
-  printf 'Topology: built-in golden fabric\n'
-fi
+printf 'Topology: built-in golden fabric\n'
 printf 'Trace log: %s\n' "$TRACE_LOG"
 printf 'pcie ls log: %s\n' "$PCIE_LS_LOG"
 printf 'pcie ls capture: %s\n' "$PCIE_LS_CAPTURE"
@@ -186,7 +151,7 @@ QEMU_ARGS+=(
   -net none
 )
 
-append_topology_args
+append_golden_fabric
 
 QEMU_ARGS+=(-kernel "$KERNEL_PATH")
 
