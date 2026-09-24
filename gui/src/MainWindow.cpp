@@ -25,8 +25,11 @@
 #include <QGuiApplication>
 #include <QApplication>
 #include <QScrollArea>
+#include <QLocale>
+#include <QVector>
 
 #include <algorithm>
+#include <cstdlib>
 
 namespace {
 
@@ -677,6 +680,47 @@ void appendTlpRow(QStandardItemModel *model,
     model->appendRow(items);
 }
 
+struct TopologyNode {
+    QString bdf;
+    QString role;
+};
+
+QVector<TopologyNode> topologyNodesFromJson(const QJsonObject &topo)
+{
+    QVector<TopologyNode> nodes;
+    const QJsonArray rcs = topo.value("root_complexes").toArray();
+    for (const QJsonValue &rcv : rcs) {
+        const QJsonArray ports = rcv.toObject().value("root_ports").toArray();
+        for (int i = 0; i < ports.size(); ++i) {
+            if (ports.at(i).isString()) {
+                nodes.append({ports.at(i).toString(), QString("rp%1").arg(i + 1)});
+            } else {
+                const QJsonObject p = ports.at(i).toObject();
+                nodes.append({p.value("bdf").toString(), p.value("id").toString("root-port")});
+            }
+        }
+    }
+
+    const QJsonArray switches = topo.value("switches").toArray();
+    for (const QJsonValue &swv : switches) {
+        const QJsonObject sw = swv.toObject();
+        const QString name = sw.value("name").toString("switch");
+        nodes.append({sw.value("upstream_port").toString(), name});
+        const QJsonArray dps = sw.value("downstream_ports").toArray();
+        for (int d = 0; d < dps.size(); ++d) {
+            nodes.append({dps.at(d).toString(), QString("%1_dp%2").arg(name).arg(d)});
+        }
+    }
+
+    const QJsonArray endpoints = topo.value("endpoints").toArray();
+    for (const QJsonValue &epv : endpoints) {
+        const QJsonObject ep = epv.toObject();
+        nodes.append({ep.value("bdf").toString(),
+                      ep.value("label").toString(ep.value("display").toString("endpoint"))});
+    }
+    return nodes;
+}
+
 void appendCfgReadRows(QStandardItemModel *model, const QString &bdf, const QString &role)
 {
     static const uint64_t enumAddrs[] = {0x00, 0x04, 0x08, 0x0c, 0x10, 0x14, 0x18, 0x1c};
@@ -698,6 +742,8 @@ void appendCfgReadRows(QStandardItemModel *model, const QString &bdf, const QStr
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
+    , aiPerformanceReadout(nullptr)
+    , fabricSizeBox(nullptr)
     , aiEmulatorDialog(nullptr)
     , pcieLsDialog(nullptr)
     , liveTraceTimer(nullptr)
@@ -1750,6 +1796,9 @@ void MainWindow::updateTopologySourceUi()
     if (topologyFileCombo) {
         topologyFileCombo->setEnabled(topologyRunMode == TopologyRunMode::JsonFile);
     }
+    if (fabricSizeBox) {
+        fabricSizeBox->setVisible(topologyRunMode == TopologyRunMode::Generated);
+    }
 }
 
 QJsonObject MainWindow::goldenTopologyObject() const
@@ -2092,159 +2141,87 @@ void MainWindow::enumeratePciDevice()
     statusLabel->setText(QString("Enumerated PCI device (%1)").arg(deviceSummary));
 }
 
-void MainWindow::runAiPerformanceScenario(const QString &profile,
-                                         int rootPorts,
-                                         int endpointsPerRoot,
-                                         int iterations,
-                                         int latencyNs,
-                                         int tps,
-                                         int burstSize,
-                                         int jitterNs,
-                                         double dropRate,
-                                         int busCount)
+void MainWindow::measureDeployedTopologyPerformance()
 {
-    const QString scenarioSpec = QString("profile=%1,latency=%2ns,tps=%3,burst=%4,jitter=%5ns,drop_rate=%6")
-        .arg(profile)
-        .arg(latencyNs)
-        .arg(tps)
-        .arg(burstSize)
-        .arg(jitterNs)
-        .arg(QString::number(dropRate, 'f', 6));
-
-    const QString resolvedScript = resolveTopologyScript();
-    if (resolvedScript.isEmpty()) {
-        QMessageBox::warning(this, "AI performance measurement failed",
-                             topologyRunMode == TopologyRunMode::LinuxQemu
-                                 ? QStringLiteral("The Linux QEMU topology runner is not available in this workspace.")
-                                 : QStringLiteral("The Zephyr topology runner is not available in this workspace."));
-        return;
-    }
-
-    const QString workDir = QDir::cleanPath(QFileInfo(resolvedScript).absolutePath() + "/..");
     if (currentTopology.isEmpty()) {
-        currentTopology = generateTopologyFromCounts(rootPorts, endpointsPerRoot);
-    }
-    const QString topoPath = activeTopologyJsonPath(workDir);
-    const QString traceLog = QDir(workDir).filePath(topologyTraceFileName());
-    currentAiPerformanceTargetTps = tps;
-    currentAiPerformanceTargetLatencyNs = latencyNs;
-    liveTraceSeen.clear();
-    liveTracePath = traceLog;
-
-    if (liveTraceTimer) {
-        liveTraceTimer->stop();
-        delete liveTraceTimer;
-    }
-    liveTraceTimer = new QTimer(this);
-    connect(liveTraceTimer, &QTimer::timeout, this, &MainWindow::pollLiveTrace);
-    liveTraceTimer->start(500);
-
-    if (liveTraceProcess) {
-        suppressAiRunnerExitWarning = true;
-        stopProcessAndDelete(liveTraceProcess);
-        liveTraceProcess = nullptr;
+        currentTopology = goldenTopologyObject();
+        renderCurrentTopology();
     }
 
-    liveTraceProcess = new QProcess(this);
-    liveTraceProcess->setWorkingDirectory(workDir);
-    liveTraceProcess->setProgram("bash");
-    liveTraceProcess->setArguments({resolvedScript});
-    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-        env.insert("PCIE_DUMMY_PROFILE", profile);
-        env.insert("PCIE_DUMMY_SCENARIO", scenarioSpec);
-        env.insert("RUN_TIMEOUT_SECONDS", "5");
-        env.insert("TRACE_LOG", traceLog);
-        env.insert("PCIE_HEADLESS", "1");
-        if (!topoPath.isEmpty()) {
-            env.insert("TOPOLOGY_JSON", topoPath);
-        }
-        env.insert("TOPOLOGY_MODE", topologyModeEnv());
-    liveTraceProcess->setProcessEnvironment(env);
-
-    connect(liveTraceProcess, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-            this, [this, traceLog, profile, rootPorts, endpointsPerRoot, iterations, latencyNs, tps, burstSize, jitterNs, dropRate, busCount](int exitCode, QProcess::ExitStatus status) {
-                if (suppressAiRunnerExitWarning) {
-                    suppressAiRunnerExitWarning = false;
-                    return;
-                }
-                if (status == QProcess::CrashExit || exitCode != 0) {
-                    QMessageBox::warning(this, "AI performance measurement failed",
-                                         QString("%1 measure run exited with an error. "
-                                                 "Check the generated trace log and the runner output.")
-                                             .arg(topologyModeTitle()));
-                    return;
-                }
-                if (QFileInfo::exists(traceLog) || model->rowCount() > 0) {
-                    int totalEntries = 0;
-                    int txCount = 0;
-                    int rxCount = 0;
-                    double firstTs = 0.0;
-                    double lastTs = 0.0;
-
-                    if (QFileInfo::exists(traceLog)) {
-                        summarizeTraceFile(traceLog, &totalEntries, &txCount, &rxCount, &firstTs, &lastTs);
-                    }
-                    if (totalEntries == 0 && model->rowCount() > 0) {
-                        summarizeModelRows(model, &totalEntries, &txCount, &rxCount, &firstTs, &lastTs);
-                    }
-
-                    const double durationSec = (lastTs > firstTs) ? ((lastTs - firstTs) / 1000.0) : 1.0;
-                    const double observedTps = (durationSec > 0.0) ? (totalEntries / durationSec) : 0.0;
-                    const double observedLatencyUs = latencyNs / 1000.0;
-                    const double observedUtilization = (tps > 0) ? std::min(100.0, (observedTps / tps) * 100.0) : 0.0;
-
-                    updateAiPerformanceReadout();
-                    statusLabel->setText(QString("AI performance summary: profile=%1 | packets=%2 | throughput=%3 ops/s | latency=%4 us | util=%5%")
-                        .arg(profile)
-                        .arg(totalEntries)
-                        .arg(observedTps, 0, 'f', 2)
-                        .arg(observedLatencyUs, 0, 'f', 2)
-                        .arg(observedUtilization, 0, 'f', 1));
-
-                    QMessageBox::information(this, "AI PCIe performance summary",
-                                             QString("Profile: %1\n"
-                                                     "Root ports: %2\n"
-                                                     "Endpoints/root: %3\n"
-                                                     "Iterations: %4\n"
-                                                     "Target latency: %5 ns\n"
-                                                     "Target token rate: %6 tps\n"
-                                                     "Target burst: %7\n"
-                                                     "Target jitter: %8 ns\n"
-                                                     "Drop rate: %9\n\n"
-                                                     "Observed entries: %10\n"
-                                                     "TX: %11\n"
-                                                     "RX: %12\n"
-                                                     "Observed throughput: %13 ops/s\n"
-                                                     "Observed latency: %14 us\n"
-                                                     "Utilization: %15%")
-                                             .arg(profile)
-                                             .arg(rootPorts)
-                                             .arg(endpointsPerRoot)
-                                             .arg(iterations)
-                                             .arg(latencyNs)
-                                             .arg(tps)
-                                             .arg(burstSize)
-                                             .arg(jitterNs)
-                                             .arg(dropRate, 0, 'f', 3)
-                                             .arg(totalEntries)
-                                             .arg(txCount)
-                                             .arg(rxCount)
-                                             .arg(observedTps, 0, 'f', 2)
-                                             .arg(observedLatencyUs, 0, 'f', 2)
-                                             .arg(observedUtilization, 0, 'f', 1));
-                }
-            });
-
-    updateAiPerformanceReadout();
-    liveTraceProcess->start();
-    if (!liveTraceProcess->waitForStarted()) {
-        QMessageBox::warning(this, "AI performance measurement failed",
-                             "The Zephyr AI topology runner could not be started.");
+    const QVector<TopologyNode> nodes = topologyNodesFromJson(currentTopology);
+    if (nodes.isEmpty()) {
+        QMessageBox::warning(this, "Measure failed",
+                             "The current topology has no devices to walk.");
         return;
     }
 
-    statusLabel->setText(QString("Measuring %1  ·  %2")
-                             .arg(topologyModeTitle(), currentTopology.value("topology_name").toString()));
+    // Do not apply dummy throttle/latency. Those would invent tokens/sec.
+    unsetenv("PCIE_DUMMY_SCENARIO");
+    unsetenv("PCIE_DUMMY_PROFILE");
+    unsetenv("PCIE_DUMMY_LATENCY_NS");
+    unsetenv("PCIE_DUMMY_TOKENS_PER_SEC");
+    unsetenv("PCIE_DUMMY_JITTER_NS");
+    unsetenv("PCIE_DUMMY_DROP_RATE");
+
+    pcie_ctx_t *ctx = pcie_open("dummy");
+    if (!ctx) {
+        QMessageBox::warning(this, "Measure failed",
+                             "Unable to open the dummy backend to time config reads.");
+        return;
+    }
+
+    static const uint32_t enumAddrs[] = {0x00, 0x04, 0x08, 0x0c, 0x10, 0x14, 0x18, 0x1c};
+    const int addrs = static_cast<int>(sizeof(enumAddrs) / sizeof(enumAddrs[0]));
+    const qint64 minNs = 50LL * 1000LL * 1000LL;
+    const int maxRounds = 64;
+    int txns = 0;
+    int rounds = 0;
+    bool failed = false;
+
+    QElapsedTimer timer;
+    timer.start();
+    do {
+        for (const TopologyNode &node : nodes) {
+            for (int i = 0; i < addrs; ++i) {
+                pcie_tlp_t cfgRead = pcie_tlp_cfg_read(enumAddrs[i]);
+                uint8_t payload[4] = {0};
+                cfgRead.requester_id = 0x0000;
+                cfgRead.completer_id = 0;
+                cfgRead.tag = static_cast<uint8_t>(i);
+                cfgRead.length = 4;
+                cfgRead.mem.data = payload;
+                if (pcie_send(ctx, &cfgRead) != 0) {
+                    failed = true;
+                    break;
+                }
+                ++txns;
+            }
+            if (failed) {
+                break;
+            }
+        }
+        ++rounds;
+    } while (!failed && timer.nsecsElapsed() < minNs && rounds < maxRounds);
+    const qint64 elapsedNs = timer.nsecsElapsed();
+    pcie_close(ctx);
+
+    if (failed || txns == 0 || elapsedNs <= 0) {
+        QMessageBox::warning(this, "Measure failed",
+                             "Config-space walk did not complete on the deployed topology.");
+        return;
+    }
+
+    lastPerfDevices = nodes.size();
+    lastPerfTxns = txns;
+    lastPerfElapsedNs = elapsedNs;
+    lastPerfCfgPerSec = (static_cast<double>(txns) * 1e9) / static_cast<double>(elapsedNs);
+
+    injectFabricEnumerationPackets();
+    updateAiPerformanceReadout();
+    statusLabel->setText(QString("Measured %1 devices on %2  ·  %3 cfg/s")
+                             .arg(lastPerfDevices)
+                             .arg(currentTopology.value("topology_name").toString("topology"))
+                             .arg(lastPerfCfgPerSec, 0, 'f', 0));
 }
 
 void MainWindow::openAiPerfDialog()
@@ -2295,10 +2272,14 @@ void MainWindow::openAiPerfDialog()
         topologyView->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
         aiTopologyView = topologyView;
 
-        aiPerformanceReadout = new QLabel("Live performance: waiting for trace...", aiEmulatorDialog);
+        aiPerformanceReadout = new QLabel(aiEmulatorDialog);
         aiPerformanceReadout->setObjectName("summaryCard");
+        aiPerformanceReadout->setWordWrap(true);
+        aiPerformanceReadout->setTextFormat(Qt::RichText);
+        aiPerformanceReadout->setTextInteractionFlags(Qt::TextSelectableByMouse);
 
-        auto *workloadBox = new QGroupBox("Workload profile", aiEmulatorDialog);
+        auto *workloadBox = new QGroupBox("Fabric size", aiEmulatorDialog);
+        fabricSizeBox = workloadBox;
         auto *form = new QGridLayout(workloadBox);
         form->setContentsMargins(10, 8, 10, 8);
         form->setHorizontalSpacing(12);
@@ -2311,11 +2292,11 @@ void MainWindow::openAiPerfDialog()
         };
 
         QComboBox *preset = new QComboBox(workloadBox);
-        preset->addItem("Golden workload");
-        preset->addItem("Low latency mesh");
-        preset->addItem("High throughput fabric");
+        preset->addItem("Golden fabric");
+        preset->addItem("Wider mesh");
+        preset->addItem("Dense fabric");
         preset->addItem("Custom");
-        preset->setCurrentText("Golden workload");
+        preset->setCurrentText("Golden fabric");
 
         QSpinBox *rootPorts = new QSpinBox(workloadBox);
         rootPorts->setRange(1, 16);
@@ -2323,49 +2304,13 @@ void MainWindow::openAiPerfDialog()
         QSpinBox *endpointPerRoot = new QSpinBox(workloadBox);
         endpointPerRoot->setRange(1, 16);
         endpointPerRoot->setValue(2);
-        QSpinBox *buses = new QSpinBox(workloadBox);
-        buses->setRange(1, 8);
-        buses->setValue(4);
-        QSpinBox *iterations = new QSpinBox(workloadBox);
-        iterations->setRange(1, 1000);
-        iterations->setValue(20);
-        QSpinBox *latencyNs = new QSpinBox(workloadBox);
-        latencyNs->setRange(0, 1000000);
-        latencyNs->setValue(80);
-        QSpinBox *tps = new QSpinBox(workloadBox);
-        tps->setRange(1, 100000000);
-        tps->setValue(500000);
-        QSpinBox *burstSize = new QSpinBox(workloadBox);
-        burstSize->setRange(1, 64);
-        burstSize->setValue(32);
-        QSpinBox *jitterNs = new QSpinBox(workloadBox);
-        jitterNs->setRange(0, 1000000);
-        jitterNs->setValue(25);
-        QDoubleSpinBox *dropRate = new QDoubleSpinBox(workloadBox);
-        dropRate->setRange(0.0, 1.0);
-        dropRate->setSingleStep(0.001);
-        dropRate->setValue(0.0);
 
-        form->addWidget(makeFormLabel("Workload"), 0, 0);
+        form->addWidget(makeFormLabel("Preset"), 0, 0);
         form->addWidget(preset, 0, 1);
         form->addWidget(makeFormLabel("Root ports"), 0, 2);
         form->addWidget(rootPorts, 0, 3);
         form->addWidget(makeFormLabel("Endpoints / root"), 1, 0);
         form->addWidget(endpointPerRoot, 1, 1);
-        form->addWidget(makeFormLabel("Buses"), 1, 2);
-        form->addWidget(buses, 1, 3);
-        form->addWidget(makeFormLabel("Iterations"), 2, 0);
-        form->addWidget(iterations, 2, 1);
-        form->addWidget(makeFormLabel("Latency (ns)"), 2, 2);
-        form->addWidget(latencyNs, 2, 3);
-        form->addWidget(makeFormLabel("Tokens/sec"), 3, 0);
-        form->addWidget(tps, 3, 1);
-        form->addWidget(makeFormLabel("Burst size"), 3, 2);
-        form->addWidget(burstSize, 3, 3);
-        form->addWidget(makeFormLabel("Jitter (ns)"), 4, 0);
-        form->addWidget(jitterNs, 4, 1);
-        form->addWidget(makeFormLabel("Drop rate"), 4, 2);
-        form->addWidget(dropRate, 4, 3);
         form->setColumnStretch(1, 1);
         form->setColumnStretch(3, 1);
 
@@ -2379,16 +2324,11 @@ void MainWindow::openAiPerfDialog()
         actionButtons->addButton(pcieLsButton, QDialogButtonBox::ActionRole);
         actionButtons->addButton(closeButton, QDialogButtonBox::ActionRole);
 
-        auto *bodySplit = new QSplitter(Qt::Vertical, aiEmulatorDialog);
-        bodySplit->addWidget(topologyView);
-        bodySplit->addWidget(workloadBox);
-        bodySplit->setStretchFactor(0, 4);
-        bodySplit->setStretchFactor(1, 0);
-        bodySplit->setChildrenCollapsible(false);
         workloadBox->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
 
         mainLayout->addWidget(sourceBox, 0);
-        mainLayout->addWidget(bodySplit, 1);
+        mainLayout->addWidget(topologyView, 1);
+        mainLayout->addWidget(workloadBox, 0);
         mainLayout->addWidget(aiPerformanceReadout, 0);
         mainLayout->addWidget(actionButtons, 0);
 
@@ -2399,40 +2339,19 @@ void MainWindow::openAiPerfDialog()
             return true;
         };
 
-        auto applyWorkload = [rootPorts, endpointPerRoot, buses, iterations, latencyNs, tps, burstSize, jitterNs, dropRate](int index) {
+        auto applyWorkload = [rootPorts, endpointPerRoot](int index) {
             switch (index) {
                 case 0:
                     rootPorts->setValue(4);
                     endpointPerRoot->setValue(2);
-                    buses->setValue(4);
-                    iterations->setValue(20);
-                    latencyNs->setValue(80);
-                    tps->setValue(500000);
-                    burstSize->setValue(32);
-                    jitterNs->setValue(25);
-                    dropRate->setValue(0.0);
                     break;
                 case 1:
                     rootPorts->setValue(8);
                     endpointPerRoot->setValue(2);
-                    buses->setValue(4);
-                    iterations->setValue(20);
-                    latencyNs->setValue(80);
-                    tps->setValue(500000);
-                    burstSize->setValue(32);
-                    jitterNs->setValue(25);
-                    dropRate->setValue(0.001);
                     break;
                 case 2:
                     rootPorts->setValue(8);
                     endpointPerRoot->setValue(4);
-                    buses->setValue(4);
-                    iterations->setValue(25);
-                    latencyNs->setValue(120);
-                    tps->setValue(1000000);
-                    burstSize->setValue(64);
-                    jitterNs->setValue(75);
-                    dropRate->setValue(0.005);
                     break;
                 default:
                     break;
@@ -2564,22 +2483,8 @@ void MainWindow::openAiPerfDialog()
             statusLabel->setText(QString("%1 started  ·  %2")
                                      .arg(topologyModeTitle(), currentTopology.value("topology_name").toString()));
         });
-        connect(measureButton, &QPushButton::clicked, this, [this, preset, rootPorts, endpointPerRoot, buses, iterations, latencyNs, tps, burstSize, jitterNs, dropRate]() {
-            QString profile = "gen8x16";
-            if (preset->currentText() == "Low latency mesh") {
-                profile = "gen7x8";
-            }
-
-            runAiPerformanceScenario(profile,
-                                     rootPorts->value(),
-                                     endpointPerRoot->value(),
-                                     iterations->value(),
-                                     latencyNs->value(),
-                                     tps->value(),
-                                     burstSize->value(),
-                                     jitterNs->value(),
-                                     dropRate->value(),
-                                     buses->value());
+        connect(measureButton, &QPushButton::clicked, this, [this]() {
+            measureDeployedTopologyPerformance();
         });
         connect(pcieLsButton, &QPushButton::clicked, this, [this]() {
             if (currentTopology.isEmpty()) {
@@ -2640,19 +2545,17 @@ void MainWindow::openAiPerfDialog()
             topologyModeCombo = nullptr;
             topologyFileCombo = nullptr;
             runTopologyButton = nullptr;
+            fabricSizeBox = nullptr;
         });
 
         loadGolden();
         applyWorkload(0);
         updateTopologySourceUi();
+        updateAiPerformanceReadout();
     }
 
     fitToAvailableScreen(aiEmulatorDialog, 1.0);
     aiEmulatorDialog->show();
-    if (QSplitter *split = aiEmulatorDialog->findChild<QSplitter *>()) {
-        const int total = qMax(600, split->height());
-        split->setSizes({static_cast<int>(total * 0.72), static_cast<int>(total * 0.28)});
-    }
     aiEmulatorDialog->raise();
     aiEmulatorDialog->activateWindow();
 }
@@ -2693,27 +2596,39 @@ void MainWindow::applyFilter()
 
 void MainWindow::updateAiPerformanceReadout()
 {
-    if (!aiPerformanceReadout || !model) {
+    if (!aiPerformanceReadout) {
         return;
     }
 
-    int totalEntries = 0;
-    int txCount = 0;
-    int rxCount = 0;
-    double firstTs = 0.0;
-    double lastTs = 0.0;
-    summarizeModelRows(model, &totalEntries, &txCount, &rxCount, &firstTs, &lastTs);
+    const auto statCell = [](const QString &title, const QString &value) {
+        return QStringLiteral(
+                   "<td style='width:25%;padding:4px 10px;'>"
+                   "<div style='font-size:11px;opacity:0.7;'>%1</div>"
+                   "<div style='font-size:18px;font-weight:700;margin-top:2px;'>%2</div>"
+                   "</td>")
+            .arg(title.toHtmlEscaped(), value.toHtmlEscaped());
+    };
 
-    const double durationSec = (lastTs > firstTs) ? ((lastTs - firstTs) / 1000.0) : 1.0;
-    const double observedTps = (durationSec > 0.0) ? (totalEntries / durationSec) : 0.0;
-    const double observedLatencyUs = (currentAiPerformanceTargetLatencyNs > 0) ? (currentAiPerformanceTargetLatencyNs / 1000.0) : 0.0;
-    const double utilization = (currentAiPerformanceTargetTps > 0) ? std::min(100.0, (observedTps / currentAiPerformanceTargetTps) * 100.0) : 0.0;
+    QString devices = QStringLiteral("—");
+    QString reads = QStringLiteral("—");
+    QString elapsed = QStringLiteral("—");
+    QString rate = QStringLiteral("—");
+    if (lastPerfTxns > 0 && lastPerfElapsedNs > 0) {
+        devices = QLocale().toString(lastPerfDevices);
+        reads = QLocale().toString(lastPerfTxns);
+        elapsed = QString("%1 ms").arg(static_cast<double>(lastPerfElapsedNs) / 1e6, 0, 'f', 2);
+        rate = QString("%1 cfg/s").arg(QLocale().toString(qRound(lastPerfCfgPerSec)));
+    }
 
-    aiPerformanceReadout->setText(QString("Live performance: %1 entries | throughput=%2 ops/s | latency=%3 us | util=%4%")
-        .arg(totalEntries)
-        .arg(observedTps, 0, 'f', 2)
-        .arg(observedLatencyUs, 0, 'f', 2)
-        .arg(utilization, 0, 'f', 1));
+    aiPerformanceReadout->setText(
+        QStringLiteral("<table width='100%' cellspacing='0' cellpadding='0'><tr>%1%2%3%4</tr></table>"
+                       "<div style='font-size:11px;opacity:0.7;padding:2px 10px 0 10px;'>"
+                       "Timed config-space walk of the deployed fabric. Not AI tokens/sec."
+                       "</div>")
+            .arg(statCell(QStringLiteral("Devices"), devices),
+                 statCell(QStringLiteral("Config reads"), reads),
+                 statCell(QStringLiteral("Elapsed"), elapsed),
+                 statCell(QStringLiteral("Rate"), rate)));
 }
 
 void MainWindow::updateSummaryStats()

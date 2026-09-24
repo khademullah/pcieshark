@@ -182,23 +182,9 @@ This layout is intentionally fixed so benchmarks and traces stay comparable.
 
 The guest PCI-list path stays isolated from the main TLP stream so enumeration logs do not overwrite performance or capture runs.
 
-### Performance model
+### Performance
 
-Configurable workload parameters include root ports, endpoints per root, buses, iterations, latency, tokens/sec, burst size, jitter, and drop rate.
-
-Default golden profile:
-
-| Parameter | Value |
-| --- | --- |
-| Root ports | 4 |
-| Endpoints / root | 2 |
-| Buses | 4 |
-| Iterations | 20 |
-| Latency | 80 ns |
-| Tokens/sec | 500000 |
-| Burst size | 32 |
-| Jitter | 25 ns |
-| Drop rate | 0.00 |
+QEMU NVMe stand-ins are not accelerators, so AI tokens/sec is not measurable on this fabric. The emulator **Measure** button times a real config-space walk of every device in the deployed topology (no invented latency or token targets) and reports **cfg/s**.
 
 ### Runners
 

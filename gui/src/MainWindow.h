@@ -84,6 +84,7 @@ private:
     QLabel *rxLabel;
     QLabel *filteredLabel;
     QLabel *aiPerformanceReadout;
+    QWidget *fabricSizeBox;
     QDialog *aiEmulatorDialog;
     QDialog *pcieLsDialog;
     QTimer *liveTraceTimer;
@@ -99,8 +100,10 @@ private:
     QPushButton *runTopologyButton;
     TopologyRunMode topologyRunMode;
     QSet<QString> liveTraceSeen;
-    int currentAiPerformanceTargetTps = 0;
-    int currentAiPerformanceTargetLatencyNs = 0;
+    int lastPerfDevices = 0;
+    int lastPerfTxns = 0;
+    qint64 lastPerfElapsedNs = 0;
+    double lastPerfCfgPerSec = 0;
     bool darkMode;
     bool suppressAiRunnerExitWarning;
     void applyTheme();
@@ -122,16 +125,7 @@ private:
     QString materializeCurrentTopology(const QString &workDir);
     void renderCurrentTopology();
     void injectFabricEnumerationPackets();
-    void runAiPerformanceScenario(const QString &profile,
-                                 int rootPorts,
-                                 int endpointsPerRoot,
-                                 int iterations,
-                                 int latencyNs,
-                                 int tps,
-                                 int burstSize,
-                                 int jitterNs,
-                                 double dropRate,
-                                 int busCount);
+    void measureDeployedTopologyPerformance();
     void showPcieLsWindow(const QString &path);
     void showPcieLsText(const QString &text);
 };
