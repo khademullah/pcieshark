@@ -32,6 +32,7 @@
 
 enum class TopologyRunMode {
     ZephyrGolden,
+    LinuxQemu,
     JsonFile,
     Generated
 };
@@ -107,6 +108,9 @@ private:
     QString findRepoPath(const QStringList &relativeCandidates) const;
     QString repoRootPath() const;
     QString resolveZephyrScript() const;
+    QString resolveLinuxScript() const;
+    QString resolveTopologyScript() const;
+    QString topologyModeEnv() const;
     QStringList listConfigTopologyFiles() const;
     QString topologyTraceFileName() const;
     QString activeTopologyJsonPath(const QString &workDir);
@@ -129,4 +133,5 @@ private:
                                  double dropRate,
                                  int busCount);
     void showPcieLsWindow(const QString &path);
+    void showPcieLsText(const QString &text);
 };

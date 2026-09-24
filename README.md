@@ -8,7 +8,7 @@
   Open PCIe trace, enumeration, and analysis toolkit
 </p>
 
-pcieshark is a developer-facing toolkit for building, inspecting, and validating PCIe traffic. It combines a reusable C library (`libpcapcie`), example programs, a Qt GUI, and a Zephyr/QEMU topology flow so the same stack works on real hardware and emulated fabrics.
+pcieshark is a developer-facing toolkit for building, inspecting, and validating PCIe traffic. It combines a reusable C library (`libpcapcie`), example programs, a Qt GUI, and Zephyr or Linux QEMU topology flows so the same stack works on real hardware and emulated fabrics.
 
 It is designed to be:
 
@@ -34,7 +34,7 @@ PCIe bring-up usually needs a mix of raw trace inspection, config-space enumerat
 - direct PCIe backend access
 - high-level TLP create/parse/filter
 - GUI review of live or captured traces
-- optional Zephyr/QEMU topology for enumeration experiments
+- optional Zephyr or Linux QEMU topology for enumeration experiments
 
 ## Core features
 
@@ -45,8 +45,8 @@ PCIe bring-up usually needs a mix of raw trace inspection, config-space enumerat
 - Backends for PCI, dummy, FPGA, ARM DS, and similar targets
 - Trace capture and export (pcap-style or CSV)
 - Qt GUI for live or offline packet browsing
-- Zephyr/QEMU topology execution for enumeration-style work
-- JSON-driven topology presets for AI/accelerator fabrics
+- Zephyr and Linux QEMU topology execution for enumeration-style work
+- Built-in golden AI fabric shared by both guests
 
 ## Repository structure
 
@@ -55,14 +55,14 @@ PCIe bring-up usually needs a mix of raw trace inspection, config-space enumerat
 - `include/pcie_topology.h` — topology model used by the emulator
 - `examples/` — CLI tools for TLP, link, capture, and topology flows
 - `gui/` — Qt desktop application
-- `scripts/` — QEMU/Zephyr helpers
+- `scripts/` — QEMU helpers for Zephyr and Linux guests
 - `pcieshark/` — product notes for the CLI and GUI front-end
 - `docs/assets/` — project artwork
 
 ## Supported workflows
 
 1. **Trace-only** — open a captured file, inspect TLPs, filter by direction, type, or identifier.
-2. **Live trace** — run the Zephyr/QEMU topology, collect config-space traffic, review packets in real time.
+2. **Live trace** — run the Zephyr or Linux QEMU topology, collect config-space traffic, review packets in real time.
 3. **PCI enumeration** — use a backend to inspect a target device and validate reported link information.
 4. **Experimental topology** — run an emulated AI fabric, inspect enumeration, keep that path separate from the main TLP stream.
 
@@ -72,7 +72,7 @@ PCIe bring-up usually needs a mix of raw trace inspection, config-space enumerat
 - CMake 3.13+
 - C/C++ toolchain
 - Qt 6 development libraries for the GUI
-- Zephyr SDK and a kernel image for the emulated topology flow
+- Zephyr SDK and a kernel image for the Zephyr topology flow, or a Linux disk/kernel image for the Linux QEMU flow
 
 ### Zephyr-backed emulation
 
@@ -174,13 +174,13 @@ This layout is intentionally fixed so benchmarks and traces stay comparable.
 
 ### Enumeration flow
 
-1. Launch the Zephyr/QEMU topology.
+1. Launch the Zephyr or Linux QEMU topology.
 2. Boot the guest with the PCIe fabric model.
-3. Enumerate the topology from the guest.
+3. Enumerate the topology from the guest (`pcie ls` on Zephyr, `lspci` on Linux).
 4. Collect bus/device information into a structured log.
 5. Parse that list into a PCIe map for the GUI and analysis tools.
 
-The `pcie ls` path stays isolated from the main TLP stream so enumeration logs do not overwrite performance or capture runs.
+The guest PCI-list path stays isolated from the main TLP stream so enumeration logs do not overwrite performance or capture runs.
 
 ### Performance model
 
@@ -200,13 +200,27 @@ Default golden profile:
 | Jitter | 25 ns |
 | Drop rate | 0.00 |
 
-### Runner
+### Runners
+
+The same built-in golden fabric is attached as QEMU `-device` arguments for either guest. That works on a VM: QEMU emulates the switches, NVMe stand-ins, and NICs; the guest only has to enumerate them.
 
 ```bash
 ./scripts/run_zephyr_ai_topology.sh
 ```
 
-The script checks the Zephyr venv, source tree, SDK, QEMU binary, and kernel image, then starts the emulated topology. Override paths with `ZEPHYR_BASE`, `ZEPHYR_SDK_INSTALL_DIR`, and `KERNEL_PATH` as needed.
+The Zephyr script checks the venv, source tree, SDK, QEMU binary, and kernel image, then starts the emulated topology. Override paths with `ZEPHYR_BASE`, `ZEPHYR_SDK_INSTALL_DIR`, and `KERNEL_PATH` as needed.
+
+```bash
+# aarch64 virt (same machine family as Zephyr)
+ARCH=aarch64 KERNEL_PATH=/path/to/Image INITRD_PATH=/path/to/initrd.img \
+  ./scripts/run_linux_ai_topology.sh
+
+# x86_64 q35
+ARCH=x86_64 DISK_IMAGE=/path/to/linux.qcow2 \
+  ./scripts/run_linux_ai_topology.sh
+```
+
+The Linux script uses host `qemu-system-aarch64` or `qemu-system-x86_64`, enables KVM when `/dev/kvm` is available, and fails clearly if no disk or kernel is provided. In the GUI, pick **Linux QEMU runner** in the AI emulator to use this path.
 
 ## PCI backend notes
 
@@ -289,7 +303,7 @@ The Qt application focuses on readable packet inspection:
 
 ## Release status
 
-The core library, GUI, backends, examples, and Zephyr/QEMU topology tooling form a stable baseline. Experimental AI topology and performance flows are supported as extensions, not the definition of the first release.
+The core library, GUI, backends, examples, and QEMU topology tooling (Zephyr or Linux guests) form a stable baseline. Experimental AI topology and performance flows are supported as extensions, not the definition of the first release.
 
 ## Contributing
 

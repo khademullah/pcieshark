@@ -58,6 +58,42 @@ def qemu_device_for_endpoint(ep: dict, netdev_id: Optional[str]) -> str:
     return f"nvme,id={label},bus={parent},addr=00.0,serial={serial}"
 
 
+def golden_topology() -> dict:
+    """Built-in AI fabric used by both Zephyr and Linux QEMU runners."""
+    return {
+        "topology_name": "AI golden topology",
+        "root_complexes": [
+            {
+                "domain": "0000",
+                "root_bus": "00",
+                "label": "CPU Complex",
+                "root_ports": [
+                    {"id": "rp1", "bdf": "00:01.0", "addr": "01.0", "label": "Compute Hub 1", "secondary_bus": "01"},
+                    {"id": "rp2", "bdf": "00:01.1", "addr": "01.1", "label": "Compute Hub 2", "secondary_bus": "07"},
+                    {"id": "rp3", "bdf": "00:01.2", "addr": "01.2", "label": "Storage Array 1", "secondary_bus": "13"},
+                    {"id": "rp4", "bdf": "00:01.3", "addr": "01.3", "label": "Storage Array 2", "secondary_bus": "19"},
+                ],
+            }
+        ],
+        "switches": [
+            {"name": "switch0", "parent": "rp1", "upstream_port": "01:00.0", "downstream_ports": ["02:00.0", "02:01.0"], "p2p_allowed": True},
+            {"name": "switch1", "parent": "rp2", "upstream_port": "07:00.0", "downstream_ports": ["08:00.0", "08:01.0"], "p2p_allowed": True},
+            {"name": "switch2", "parent": "rp3", "upstream_port": "13:00.0", "downstream_ports": ["14:00.0", "14:01.0"], "p2p_allowed": True},
+            {"name": "switch3", "parent": "rp4", "upstream_port": "19:00.0", "downstream_ports": ["20:00.0", "20:01.0"], "p2p_allowed": True},
+        ],
+        "endpoints": [
+            {"bdf": "03:00.0", "type": "GPU_ACCEL", "label": "ai1", "display": "GPU 1", "parent": "switch0_dp0", "serial": "AI_ACCEL_01", "peer_group": 1},
+            {"bdf": "05:00.0", "type": "GPU_ACCEL", "label": "ai2", "display": "GPU 2", "parent": "switch0_dp1", "serial": "AI_ACCEL_02", "peer_group": 1},
+            {"bdf": "09:00.0", "type": "GPU_ACCEL", "label": "ai3", "display": "GPU 3", "parent": "switch1_dp0", "serial": "AI_ACCEL_03", "peer_group": 2},
+            {"bdf": "0b:00.0", "type": "GPU_ACCEL", "label": "ai4", "display": "GPU 4", "parent": "switch1_dp1", "serial": "AI_ACCEL_04", "peer_group": 2},
+            {"bdf": "15:00.0", "type": "NVME", "label": "nvme1", "display": "NVMe 1", "parent": "switch2_dp0", "serial": "DATA_POOL_01"},
+            {"bdf": "17:00.0", "type": "NVME", "label": "nvme2", "display": "NVMe 2", "parent": "switch2_dp1", "serial": "DATA_POOL_02"},
+            {"bdf": "21:00.0", "type": "NIC_SMART", "label": "eth1", "display": "SmartNIC", "parent": "switch3_dp0"},
+            {"bdf": "23:00.0", "type": "NIC_SMART", "label": "eth2", "display": "SmartNIC", "parent": "switch3_dp1"},
+        ],
+    }
+
+
 def generate_args(data: dict) -> List[str]:
     args = []  # type: List[str]
     chassis = 1
@@ -123,12 +159,18 @@ def generate_args(data: dict) -> List[str]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Emit QEMU PCIe topology args from JSON")
-    parser.add_argument("json_path")
+    parser.add_argument("json_path", nargs="?", help="optional topology JSON; omit with --builtin-golden")
+    parser.add_argument("--builtin-golden", action="store_true", help="emit the built-in AI golden fabric")
     parser.add_argument("--oneline", action="store_true", help="print a single quoted command line")
     args = parser.parse_args()
 
-    with open(args.json_path, "r", encoding="utf-8") as fh:
-        data = json.load(fh)
+    if args.builtin_golden:
+        data = golden_topology()
+    elif args.json_path:
+        with open(args.json_path, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+    else:
+        parser.error("provide a JSON path or --builtin-golden")
 
     qemu_args = generate_args(data)
     if args.oneline:

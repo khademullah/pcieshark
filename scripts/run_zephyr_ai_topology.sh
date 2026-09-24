@@ -12,6 +12,8 @@ QEMU_CONSOLE_PORT="${QEMU_CONSOLE_PORT:-4444}"
 RUN_TIMEOUT_SECONDS="${RUN_TIMEOUT_SECONDS:-0}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+# shellcheck source=qemu_topology_lib.sh
+source "${SCRIPT_DIR}/qemu_topology_lib.sh"
 TOPOLOGY_JSON="${TOPOLOGY_JSON:-}"
 GEN_QEMU_ARGS="${GEN_QEMU_ARGS:-${SCRIPT_DIR}/gen_qemu_args.py}"
 TRACE_LOG_DEFAULT="${PWD}/zephyr_ai_topology_trace.log"
@@ -184,53 +186,7 @@ QEMU_ARGS+=(
   -net none
 )
 
-if [[ -f "$TOPOLOGY_JSON" && -f "$GEN_QEMU_ARGS" ]]; then
-  mapfile -t TOPO_RAW < <(python3 "$GEN_QEMU_ARGS" "$TOPOLOGY_JSON")
-  TOPO_ARGS=()
-  for token in "${TOPO_RAW[@]}"; do
-    [[ -z "$token" ]] && continue
-    # Older generator printed "-device spec" on one line; keep that working.
-    if [[ "$token" == -device\ * || "$token" == -netdev\ * ]]; then
-      TOPO_ARGS+=("${token%% *}" "${token#* }")
-    else
-      TOPO_ARGS+=("$token")
-    fi
-  done
-  if [[ ${#TOPO_ARGS[@]} -eq 0 ]]; then
-    echo "Failed to generate QEMU topology args from $TOPOLOGY_JSON"
-    exit 1
-  fi
-  QEMU_ARGS+=("${TOPO_ARGS[@]}")
-else
-  echo "Topology JSON or generator missing; using built-in golden fabric."
-  QEMU_ARGS+=(
-    -netdev user,id=net1 -netdev user,id=net2
-    -device pcie-root-port,id=rp1,bus=pcie.0,chassis=1,slot=1,addr=01.0,multifunction=on
-    -device pcie-root-port,id=rp2,bus=pcie.0,chassis=2,slot=1,addr=01.1
-    -device pcie-root-port,id=rp3,bus=pcie.0,chassis=3,slot=1,addr=01.2
-    -device pcie-root-port,id=rp4,bus=pcie.0,chassis=4,slot=1,addr=01.3
-    -device x3130-upstream,id=switch0_up,bus=rp1,addr=00.0
-    -device xio3130-downstream,id=switch0_dp0,bus=switch0_up,chassis=11,slot=0,addr=00.0,multifunction=on
-    -device xio3130-downstream,id=switch0_dp1,bus=switch0_up,chassis=12,slot=1,addr=00.1
-    -device nvme,id=ai1,bus=switch0_dp0,addr=00.0,serial=AI_ACCEL_01
-    -device nvme,id=ai2,bus=switch0_dp1,addr=00.0,serial=AI_ACCEL_02
-    -device x3130-upstream,id=switch1_up,bus=rp2,addr=00.0
-    -device xio3130-downstream,id=switch1_dp0,bus=switch1_up,chassis=21,slot=0,addr=00.0,multifunction=on
-    -device xio3130-downstream,id=switch1_dp1,bus=switch1_up,chassis=22,slot=1,addr=00.1
-    -device nvme,id=ai3,bus=switch1_dp0,addr=00.0,serial=AI_ACCEL_03
-    -device nvme,id=ai4,bus=switch1_dp1,addr=00.0,serial=AI_ACCEL_04
-    -device x3130-upstream,id=switch2_up,bus=rp3,addr=00.0
-    -device xio3130-downstream,id=switch2_dp0,bus=switch2_up,chassis=31,slot=0,addr=00.0,multifunction=on
-    -device xio3130-downstream,id=switch2_dp1,bus=switch2_up,chassis=32,slot=1,addr=00.1
-    -device nvme,id=nvme1,bus=switch2_dp0,addr=00.0,serial=DATA_POOL_01
-    -device nvme,id=nvme2,bus=switch2_dp1,addr=00.0,serial=DATA_POOL_02
-    -device x3130-upstream,id=switch3_up,bus=rp4,addr=00.0
-    -device xio3130-downstream,id=switch3_dp0,bus=switch3_up,chassis=41,slot=0,addr=00.0,multifunction=on
-    -device xio3130-downstream,id=switch3_dp1,bus=switch3_up,chassis=42,slot=1,addr=00.1
-    -device e1000e,netdev=net1,bus=switch3_dp0,addr=00.0
-    -device e1000e,netdev=net2,bus=switch3_dp1,addr=00.0
-  )
-fi
+append_topology_args
 
 QEMU_ARGS+=(-kernel "$KERNEL_PATH")
 

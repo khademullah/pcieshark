@@ -229,6 +229,7 @@ QString pciVendorName(uint16_t vendorId)
         case 0x8086: return "Intel";
         case 0x14E4: return "Broadcom";
         case 0x1AF4: return "Red Hat, Inc.";
+        case 0x1B36: return "Red Hat, Inc.";
         case 0x10DE: return "NVIDIA";
         case 0x10B5: return "PLX";
         default: return "Unknown vendor";
@@ -237,11 +238,14 @@ QString pciVendorName(uint16_t vendorId)
 
 QString pciClassName(uint32_t classCode)
 {
-    switch ((classCode >> 8) & 0xFFFFFF) {
+    const uint32_t full = classCode > 0xFFFF ? classCode : (classCode << 8);
+    switch (full) {
         case 0x020000: return "Ethernet controller";
-        case 0x010000: return "SCSI controller";
+        case 0x010000: return "SCSI storage controller";
+        case 0x010802: return "Non-Volatile memory controller";
         case 0x0C0300: return "USB controller";
-        case 0x060000: return "Bridge device";
+        case 0x060000: return "Host bridge";
+        case 0x060400: return "PCI bridge";
         case 0x030000: return "VGA compatible controller";
         default: return "Unknown class";
     }
@@ -381,6 +385,7 @@ uint8_t tlpCodeFromName(const QString &typeText)
         return PCIE_TLP_CFG_WRITE;
     }
     if (t.compare(QLatin1String("Cpl"), Qt::CaseInsensitive) == 0
+        || t.compare(QLatin1String("CplD"), Qt::CaseInsensitive) == 0
         || t.compare(QLatin1String("Completion"), Qt::CaseInsensitive) == 0
         || t == QLatin1String("10")
         || t.compare(QLatin1String("0x0A"), Qt::CaseInsensitive) == 0) {
@@ -491,23 +496,201 @@ QString buildTopologyHtmlFromJson(const QJsonObject &topo)
              wrapCellRows(epCells, 4));
 }
 
+QString leDwordPayload(uint32_t value)
+{
+    return QString("%1 %2 %3 %4")
+        .arg(value & 0xff, 2, 16, QLatin1Char('0'))
+        .arg((value >> 8) & 0xff, 2, 16, QLatin1Char('0'))
+        .arg((value >> 16) & 0xff, 2, 16, QLatin1Char('0'))
+        .arg((value >> 24) & 0xff, 2, 16, QLatin1Char('0'));
+}
+
+struct PciIdentity {
+    uint16_t vendor = 0x1b36;
+    uint16_t device = 0x0001;
+    uint32_t classCode = 0x060000;
+    uint8_t headerType = 0x00;
+    QString product;
+};
+
+PciIdentity identityFromKind(const QString &kind)
+{
+    const QString r = kind.toLower();
+    PciIdentity id;
+    if (r.contains("eth") || r.contains("nic") || r.contains("e1000")) {
+        id.vendor = 0x8086;
+        id.device = 0x10d3;
+        id.classCode = 0x020000;
+        id.product = QStringLiteral("82574L Gigabit Network Connection");
+    } else if (r.contains("nvme") || r.contains("ai") || r.contains("gpu")) {
+        id.vendor = 0x1b36;
+        id.device = 0x0010;
+        id.classCode = 0x010802;
+        id.product = QStringLiteral("QEMU NVMe Ctrl");
+    } else if (r.contains("dp") || r.contains("down")) {
+        id.vendor = 0x8086;
+        id.device = 0x3438;
+        id.classCode = 0x060400;
+        id.headerType = 0x01;
+        id.product = QStringLiteral("XIO3130 Downstream Port");
+    } else if (r.contains("switch") || r.contains("up")) {
+        id.vendor = 0x8086;
+        id.device = 0x3432;
+        id.classCode = 0x060400;
+        id.headerType = 0x01;
+        id.product = QStringLiteral("XIO3130 Upstream Port");
+    } else if (r.contains("rp") || r.contains("root") || r.contains("hub")) {
+        id.vendor = 0x1b36;
+        id.device = 0x000c;
+        id.classCode = 0x060400;
+        id.headerType = 0x01;
+        id.product = QStringLiteral("QEMU PCIe Root port");
+    } else {
+        id.product = QStringLiteral("QEMU PCI device");
+    }
+    return id;
+}
+
+uint32_t syntheticConfigDword(const QString &role, uint64_t offset)
+{
+    const PciIdentity id = identityFromKind(role);
+    const bool isBridge = id.headerType == 0x01;
+    switch (offset) {
+        case 0x00:
+            return static_cast<uint32_t>(id.vendor) | (static_cast<uint32_t>(id.device) << 16);
+        case 0x04:
+            return 0x00100006;
+        case 0x08:
+            return id.classCode << 8;
+        case 0x0c:
+            return static_cast<uint32_t>(id.headerType) << 16;
+        case 0x10:
+            return isBridge ? 0x00000000 : 0xffff0004;
+        case 0x14:
+            return isBridge ? 0x00010100 : 0x00000000;
+        case 0x18:
+            return isBridge ? 0x00010100 : 0x00000000;
+        case 0x1c:
+            return 0x00000000;
+        default:
+            return 0x00000000;
+    }
+}
+
+QString lspciLine(const QString &bdf, const QString &kind, const QString &note)
+{
+    const PciIdentity id = identityFromKind(kind);
+    const QString classHex = QString("%1").arg((id.classCode >> 8) & 0xffff, 4, 16, QLatin1Char('0'));
+    const QString vend = QString("%1").arg(id.vendor, 4, 16, QLatin1Char('0'));
+    const QString dev = QString("%1").arg(id.device, 4, 16, QLatin1Char('0'));
+    return QString("%1 %2 [%3]: %4 %5 [%6:%7]%8")
+        .arg(bdf,
+             pciClassName(id.classCode),
+             classHex,
+             pciVendorName(id.vendor),
+             id.product,
+             vend,
+             dev,
+             note.isEmpty() ? QString() : QString("  %1").arg(note));
+}
+
+QString formatTopologyPciList(const QJsonObject &topo)
+{
+    QStringList lines;
+    const QString name = topo.value("topology_name").toString("topology");
+    lines << QString("# %1").arg(name);
+    lines << QStringLiteral("# lspci -nn listing of the emulated fabric");
+    lines << QStringLiteral("# This view is built from the topology. A Linux guest image is not required.");
+    lines << QString();
+    lines << QStringLiteral("00:00.0 Host bridge [0600]: Red Hat, Inc. QEMU Host Bridge [1b36:0008]");
+
+    const QJsonArray rcs = topo.value("root_complexes").toArray();
+    for (const QJsonValue &rcv : rcs) {
+        const QJsonArray ports = rcv.toObject().value("root_ports").toArray();
+        for (int i = 0; i < ports.size(); ++i) {
+            if (ports.at(i).isString()) {
+                lines << lspciLine(ports.at(i).toString(), QStringLiteral("root-port"),
+                                   QString("rp%1").arg(i + 1));
+            } else {
+                const QJsonObject p = ports.at(i).toObject();
+                lines << lspciLine(p.value("bdf").toString(), QStringLiteral("root-port"),
+                                   p.value("label").toString(p.value("id").toString("root-port")));
+            }
+        }
+    }
+
+    const QJsonArray switches = topo.value("switches").toArray();
+    for (const QJsonValue &swv : switches) {
+        const QJsonObject sw = swv.toObject();
+        const QString swName = sw.value("name").toString("switch");
+        lines << lspciLine(sw.value("upstream_port").toString(), QStringLiteral("switch-up"), swName);
+        const QJsonArray dps = sw.value("downstream_ports").toArray();
+        for (int d = 0; d < dps.size(); ++d) {
+            lines << lspciLine(dps.at(d).toString(), QStringLiteral("switch-dp"),
+                               QString("%1_dp%2").arg(swName).arg(d));
+        }
+    }
+
+    const QJsonArray endpoints = topo.value("endpoints").toArray();
+    for (const QJsonValue &epv : endpoints) {
+        const QJsonObject ep = epv.toObject();
+        const QString display = ep.value("display").toString(ep.value("label").toString("endpoint"));
+        const QString label = ep.value("label").toString();
+        const QString note = label.isEmpty() || label == display
+            ? display
+            : QString("%1 (%2)").arg(display, label);
+        lines << lspciLine(ep.value("bdf").toString(),
+                           ep.value("type").toString(ep.value("label").toString()),
+                           note);
+    }
+
+    return lines.join('\n');
+}
+
+void appendTlpRow(QStandardItemModel *model,
+                  const QString &direction,
+                  const QString &type,
+                  const QString &requester,
+                  const QString &completer,
+                  int tag,
+                  const QString &addr,
+                  const QString &payload,
+                  const QString &role)
+{
+    const QString ts = QString::number(QDateTime::currentMSecsSinceEpoch())
+        + QString(".%1").arg(model->rowCount());
+    auto *payloadItem = new QStandardItem(payload);
+    if (!role.isEmpty()) {
+        payloadItem->setToolTip(role);
+    }
+    const QList<QStandardItem *> items = {
+        new QStandardItem(ts),
+        new QStandardItem(direction),
+        new QStandardItem(type),
+        new QStandardItem(requester),
+        new QStandardItem(completer),
+        new QStandardItem(QString::number(tag)),
+        new QStandardItem(payload.isEmpty() ? QStringLiteral("0") : QStringLiteral("4")),
+        new QStandardItem(addr),
+        payloadItem
+    };
+    model->appendRow(items);
+}
+
 void appendCfgReadRows(QStandardItemModel *model, const QString &bdf, const QString &role)
 {
     static const uint64_t enumAddrs[] = {0x00, 0x04, 0x08, 0x0c, 0x10, 0x14, 0x18, 0x1c};
+    const QString target = bdf.isEmpty() ? QStringLiteral("00:00.0") : bdf;
     for (size_t i = 0; i < sizeof(enumAddrs) / sizeof(enumAddrs[0]); ++i) {
-        const QString ts = QString::number(QDateTime::currentMSecsSinceEpoch()) + QString(".%1").arg(i);
-        const QList<QStandardItem *> items = {
-            new QStandardItem(ts),
-            new QStandardItem("TX"),
-            new QStandardItem("CfgRd"),
-            new QStandardItem(bdf.isEmpty() ? QStringLiteral("0") : bdf),
-            new QStandardItem("0"),
-            new QStandardItem(QString::number(static_cast<int>(i))),
-            new QStandardItem("4"),
-            new QStandardItem(QString("0x%1").arg(enumAddrs[i], 0, 16)),
-            new QStandardItem(role)
-        };
-        model->appendRow(items);
+        const QString addr = QString("0x%1").arg(enumAddrs[i], 0, 16);
+        const int tag = static_cast<int>(i);
+        // CfgRd has a 3/4-DW header and no data payload.
+        appendTlpRow(model, QStringLiteral("TX"), QStringLiteral("CfgRd"),
+                     QStringLiteral("00:00.0"), target, tag, addr, QString(), role);
+        // Completer returns one config DWORD as the Cpl data payload.
+        appendTlpRow(model, QStringLiteral("RX"), QStringLiteral("Cpl"),
+                     target, QStringLiteral("00:00.0"), tag, addr,
+                     leDwordPayload(syntheticConfigDword(role, enumAddrs[i])), role);
     }
 }
 
@@ -1066,7 +1249,7 @@ void MainWindow::openTrace()
     openTraceDialog();
 }
 
-void MainWindow::showPcieLsWindow(const QString &path)
+void MainWindow::showPcieLsText(const QString &text)
 {
     if (pcieLsDialog) {
         pcieLsDialog->close();
@@ -1075,17 +1258,18 @@ void MainWindow::showPcieLsWindow(const QString &path)
     }
 
     pcieLsDialog = new QDialog(this);
-    pcieLsDialog->setWindowTitle(QString("pcie ls  ·  %1").arg(topologyModeTitle()));
+    pcieLsDialog->setWindowTitle(QString("%1  ·  %2")
+                                     .arg(topologyRunMode == TopologyRunMode::LinuxQemu
+                                              ? QStringLiteral("lspci")
+                                              : QStringLiteral("pcie ls"),
+                                          topologyModeTitle()));
     fitToAvailableScreen(pcieLsDialog, 0.75);
     pcieLsDialog->setAttribute(Qt::WA_DeleteOnClose, true);
 
     QTextBrowser *browser = new QTextBrowser(pcieLsDialog);
     browser->setReadOnly(true);
-
-    const QStringList entries = extractPcieLsEntries(path);
-    browser->setPlainText(entries.isEmpty()
-                              ? QString("No pcie ls output found.\n\nFile: %1").arg(path)
-                              : entries.join("\n"));
+    browser->setFont(QFont(QStringLiteral("monospace")));
+    browser->setPlainText(text);
 
     QVBoxLayout *layout = new QVBoxLayout(pcieLsDialog);
     layout->addWidget(browser);
@@ -1093,6 +1277,31 @@ void MainWindow::showPcieLsWindow(const QString &path)
     pcieLsDialog->show();
     pcieLsDialog->raise();
     pcieLsDialog->activateWindow();
+}
+
+void MainWindow::showPcieLsWindow(const QString &path)
+{
+    const QStringList entries = extractPcieLsEntries(path);
+    if (!entries.isEmpty()) {
+        showPcieLsText(entries.join('\n'));
+        return;
+    }
+
+    QFile file(path);
+    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        const QString raw = QString::fromUtf8(file.readAll()).trimmed();
+        if (!raw.isEmpty()) {
+            showPcieLsText(raw);
+            return;
+        }
+    }
+
+    if (!currentTopology.isEmpty()) {
+        showPcieLsText(formatTopologyPciList(currentTopology));
+        return;
+    }
+
+    showPcieLsText(QString("No PCI list found.\n\nFile: %1").arg(path));
 }
 
 void MainWindow::pollLiveTrace()
@@ -1271,7 +1480,9 @@ bool parseRawTraceLine(const QString &line,
     *tag = QStringLiteral("0");
     *length = QStringLiteral("4");
     *addr = offset;
-    *payload = value;
+    bool ok = false;
+    const uint32_t dword = value.toUInt(&ok, 0);
+    *payload = ok ? leDwordPayload(dword) : value;
     return true;
 }
 
@@ -1409,6 +1620,34 @@ QString MainWindow::resolveZephyrScript() const
     return findRepoPath({"scripts/run_zephyr_ai_topology.sh"});
 }
 
+QString MainWindow::resolveLinuxScript() const
+{
+    return findRepoPath({"scripts/run_linux_ai_topology.sh"});
+}
+
+QString MainWindow::resolveTopologyScript() const
+{
+    if (topologyRunMode == TopologyRunMode::LinuxQemu) {
+        return resolveLinuxScript();
+    }
+    return resolveZephyrScript();
+}
+
+QString MainWindow::topologyModeEnv() const
+{
+    switch (topologyRunMode) {
+        case TopologyRunMode::ZephyrGolden:
+            return QStringLiteral("zephyr-golden");
+        case TopologyRunMode::LinuxQemu:
+            return QStringLiteral("linux-golden");
+        case TopologyRunMode::JsonFile:
+            return QStringLiteral("json-file");
+        case TopologyRunMode::Generated:
+            return QStringLiteral("generated");
+    }
+    return QStringLiteral("generated");
+}
+
 QStringList MainWindow::listConfigTopologyFiles() const
 {
     const QString configDir = findRepoPath({"config"});
@@ -1431,6 +1670,9 @@ QString MainWindow::topologyTraceFileName() const
     if (topologyRunMode == TopologyRunMode::ZephyrGolden) {
         return QStringLiteral("zephyr_ai_topology_trace.log");
     }
+    if (topologyRunMode == TopologyRunMode::LinuxQemu) {
+        return QStringLiteral("linux_ai_topology_trace.log");
+    }
     if (topologyRunMode == TopologyRunMode::JsonFile) {
         const QString stem = QFileInfo(currentTopologyJsonPath).completeBaseName();
         return QStringLiteral("zephyr_%1_trace.log").arg(stem.isEmpty() ? QStringLiteral("json") : stem);
@@ -1440,7 +1682,8 @@ QString MainWindow::topologyTraceFileName() const
 
 QString MainWindow::activeTopologyJsonPath(const QString &workDir)
 {
-    if (topologyRunMode == TopologyRunMode::ZephyrGolden) {
+    if (topologyRunMode == TopologyRunMode::ZephyrGolden
+        || topologyRunMode == TopologyRunMode::LinuxQemu) {
         currentTopologyJsonPath.clear();
         return QString();
     }
@@ -1456,6 +1699,8 @@ QString MainWindow::topologyModeTitle() const
     switch (topologyRunMode) {
         case TopologyRunMode::ZephyrGolden:
             return QStringLiteral("Zephyr golden runner");
+        case TopologyRunMode::LinuxQemu:
+            return QStringLiteral("Linux QEMU runner");
         case TopologyRunMode::JsonFile:
             return QStringLiteral("JSON topology");
         case TopologyRunMode::Generated:
@@ -1473,7 +1718,10 @@ void MainWindow::updateTopologySourceUi()
     if (topologyRunMode == TopologyRunMode::ZephyrGolden) {
         badge = QStringLiteral("Zephyr golden fabric");
         detail = name;
-    } else     if (topologyRunMode == TopologyRunMode::JsonFile) {
+    } else if (topologyRunMode == TopologyRunMode::LinuxQemu) {
+        badge = QStringLiteral("Linux QEMU golden fabric");
+        detail = name;
+    } else if (topologyRunMode == TopologyRunMode::JsonFile) {
         badge = QStringLiteral("Custom topology");
         detail = name;
     } else {
@@ -1491,6 +1739,8 @@ void MainWindow::updateTopologySourceUi()
     if (runTopologyButton) {
         if (topologyRunMode == TopologyRunMode::ZephyrGolden) {
             runTopologyButton->setText("Run Zephyr golden");
+        } else if (topologyRunMode == TopologyRunMode::LinuxQemu) {
+            runTopologyButton->setText("Run Linux QEMU");
         } else if (topologyRunMode == TopologyRunMode::JsonFile) {
             runTopologyButton->setText("Run custom topology");
         } else {
@@ -1861,24 +2111,12 @@ void MainWindow::runAiPerformanceScenario(const QString &profile,
         .arg(jitterNs)
         .arg(QString::number(dropRate, 'f', 6));
 
-    const QStringList candidateScripts = {
-        QDir::cleanPath(QDir::currentPath() + "/scripts/run_zephyr_ai_topology.sh"),
-        QDir::cleanPath(QCoreApplication::applicationDirPath() + "/../scripts/run_zephyr_ai_topology.sh"),
-        QDir::cleanPath(QCoreApplication::applicationDirPath() + "/../../scripts/run_zephyr_ai_topology.sh"),
-        QDir::cleanPath(QCoreApplication::applicationDirPath() + "/../../../scripts/run_zephyr_ai_topology.sh")
-    };
-
-    QString resolvedScript;
-    for (const QString &candidate : candidateScripts) {
-        if (QFileInfo::exists(candidate)) {
-            resolvedScript = candidate;
-            break;
-        }
-    }
-
+    const QString resolvedScript = resolveTopologyScript();
     if (resolvedScript.isEmpty()) {
         QMessageBox::warning(this, "AI performance measurement failed",
-                             "The Zephyr topology runner is not available in this workspace.");
+                             topologyRunMode == TopologyRunMode::LinuxQemu
+                                 ? QStringLiteral("The Linux QEMU topology runner is not available in this workspace.")
+                                 : QStringLiteral("The Zephyr topology runner is not available in this workspace."));
         return;
     }
 
@@ -1920,11 +2158,7 @@ void MainWindow::runAiPerformanceScenario(const QString &profile,
         if (!topoPath.isEmpty()) {
             env.insert("TOPOLOGY_JSON", topoPath);
         }
-        env.insert("TOPOLOGY_MODE", topologyRunMode == TopologyRunMode::ZephyrGolden
-                                        ? QStringLiteral("zephyr-golden")
-                                        : (topologyRunMode == TopologyRunMode::JsonFile
-                                               ? QStringLiteral("json-file")
-                                               : QStringLiteral("generated")));
+        env.insert("TOPOLOGY_MODE", topologyModeEnv());
     liveTraceProcess->setProcessEnvironment(env);
 
     connect(liveTraceProcess, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
@@ -1935,8 +2169,9 @@ void MainWindow::runAiPerformanceScenario(const QString &profile,
                 }
                 if (status == QProcess::CrashExit || exitCode != 0) {
                     QMessageBox::warning(this, "AI performance measurement failed",
-                                         "The Zephyr AI topology measure run exited with an error. "
-                                         "Check the generated trace log and the runner output.");
+                                         QString("%1 measure run exited with an error. "
+                                                 "Check the generated trace log and the runner output.")
+                                             .arg(topologyModeTitle()));
                     return;
                 }
                 if (QFileInfo::exists(traceLog) || model->rowCount() > 0) {
@@ -2033,6 +2268,7 @@ void MainWindow::openAiPerfDialog()
 
         topologyModeCombo = new QComboBox(sourceBox);
         topologyModeCombo->addItem("Zephyr golden runner", static_cast<int>(TopologyRunMode::ZephyrGolden));
+        topologyModeCombo->addItem("Linux QEMU runner", static_cast<int>(TopologyRunMode::LinuxQemu));
         topologyModeCombo->addItem("Generated from fields", static_cast<int>(TopologyRunMode::Generated));
 
         topologyFileCombo = nullptr;
@@ -2135,7 +2371,7 @@ void MainWindow::openAiPerfDialog()
 
         runTopologyButton = new QPushButton("Run Zephyr golden", aiEmulatorDialog);
         QPushButton *measureButton = new QPushButton("Measure performance", aiEmulatorDialog);
-        QPushButton *pcieLsButton = new QPushButton("Show pcie ls", aiEmulatorDialog);
+        QPushButton *pcieLsButton = new QPushButton("Show guest PCI list", aiEmulatorDialog);
         auto *closeButton = new QPushButton("Close", aiEmulatorDialog);
         auto *actionButtons = new QDialogButtonBox(Qt::Horizontal, aiEmulatorDialog);
         actionButtons->addButton(runTopologyButton, QDialogButtonBox::ActionRole);
@@ -2157,7 +2393,6 @@ void MainWindow::openAiPerfDialog()
         mainLayout->addWidget(actionButtons, 0);
 
         auto loadGolden = [this]() {
-            topologyRunMode = TopologyRunMode::ZephyrGolden;
             currentTopology = goldenTopologyObject();
             currentTopologyJsonPath.clear();
             renderCurrentTopology();
@@ -2204,22 +2439,29 @@ void MainWindow::openAiPerfDialog()
             }
         };
 
-        auto applyMode = [this, loadGolden, rootPorts, endpointPerRoot](int index) {
+        auto applyMode = [this, loadGolden, rootPorts, endpointPerRoot, pcieLsButton](int index) {
             topologyRunMode = static_cast<TopologyRunMode>(topologyModeCombo->itemData(index).toInt());
-            if (topologyRunMode == TopologyRunMode::ZephyrGolden) {
+            if (topologyRunMode == TopologyRunMode::ZephyrGolden
+                || topologyRunMode == TopologyRunMode::LinuxQemu) {
                 loadGolden();
             } else {
                 currentTopology = generateTopologyFromCounts(rootPorts->value(), endpointPerRoot->value());
                 currentTopologyJsonPath.clear();
                 renderCurrentTopology();
             }
+            pcieLsButton->setText(topologyRunMode == TopologyRunMode::LinuxQemu
+                                      ? QStringLiteral("Show lspci")
+                                      : QStringLiteral("Show pcie ls"));
             updateTopologySourceUi();
         };
 
         connect(topologyModeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), applyMode);
         connect(generateTopoButton, &QPushButton::clicked, this, [this, rootPorts, endpointPerRoot]() {
             topologyRunMode = TopologyRunMode::Generated;
-            topologyModeCombo->setCurrentIndex(1);
+            const int generatedIndex = topologyModeCombo->findData(static_cast<int>(TopologyRunMode::Generated));
+            if (generatedIndex >= 0) {
+                topologyModeCombo->setCurrentIndex(generatedIndex);
+            }
             currentTopology = generateTopologyFromCounts(rootPorts->value(), endpointPerRoot->value());
             currentTopologyJsonPath.clear();
             renderCurrentTopology();
@@ -2232,9 +2474,9 @@ void MainWindow::openAiPerfDialog()
             renderCurrentTopology();
             injectFabricEnumerationPackets();
 
-            const QString resolvedScript = resolveZephyrScript();
+            const QString resolvedScript = resolveTopologyScript();
             if (resolvedScript.isEmpty()) {
-                statusLabel->setText(QString("%1 enumerated in-process (Zephyr runner not found)")
+                statusLabel->setText(QString("%1 enumerated in-process (QEMU runner not found)")
                                          .arg(topologyModeTitle()));
                 QMessageBox::information(this, "Topology enumerated",
                                          "The selected fabric was walked and CfgRd traffic was generated. "
@@ -2274,11 +2516,7 @@ void MainWindow::openAiPerfDialog()
             }
             env.insert("TRACE_LOG", traceLog);
             env.insert("PCIE_HEADLESS", "1");
-            env.insert("TOPOLOGY_MODE", topologyRunMode == TopologyRunMode::ZephyrGolden
-                                            ? QStringLiteral("zephyr-golden")
-                                            : (topologyRunMode == TopologyRunMode::JsonFile
-                                                   ? QStringLiteral("json-file")
-                                                   : QStringLiteral("generated")));
+            env.insert("TOPOLOGY_MODE", topologyModeEnv());
             liveTraceProcess->setProcessEnvironment(env);
 
             connect(liveTraceProcess, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
@@ -2344,13 +2582,20 @@ void MainWindow::openAiPerfDialog()
                                      buses->value());
         });
         connect(pcieLsButton, &QPushButton::clicked, this, [this]() {
-            const QString resolvedScript = resolveZephyrScript();
-            if (resolvedScript.isEmpty()) {
-                QMessageBox::warning(this, "Zephyr runner missing",
-                                     "The Zephyr topology runner is not available.");
+            if (currentTopology.isEmpty()) {
+                currentTopology = goldenTopologyObject();
+            }
+
+            // Linux listing is the golden fabric. A guest disk/kernel is not required.
+            if (topologyRunMode == TopologyRunMode::LinuxQemu
+                || topologyRunMode == TopologyRunMode::Generated
+                || resolveTopologyScript().isEmpty()) {
+                showPcieLsText(formatTopologyPciList(currentTopology));
+                statusLabel->setText(QString("PCI list for %1").arg(topologyModeTitle()));
                 return;
             }
 
+            const QString resolvedScript = resolveTopologyScript();
             const QString workingDir = QDir::cleanPath(QFileInfo(resolvedScript).absolutePath() + "/..");
             const QString stem = QFileInfo(activeTopologyJsonPath(workingDir)).completeBaseName();
             const QString pcieLsLog = QDir(workingDir).filePath(
@@ -2369,24 +2614,22 @@ void MainWindow::openAiPerfDialog()
             if (!lsTopo.isEmpty()) {
                 env.insert("TOPOLOGY_JSON", lsTopo);
             }
-            env.insert("TOPOLOGY_MODE", topologyRunMode == TopologyRunMode::ZephyrGolden
-                                            ? QStringLiteral("zephyr-golden")
-                                            : QStringLiteral("json-file"));
+            env.insert("TOPOLOGY_MODE", topologyModeEnv());
             proc->setProcessEnvironment(env);
             proc->setArguments({resolvedScript});
             connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
                     this, [this, pcieLsLog](int exitCode, QProcess::ExitStatus status) {
-                        if (status == QProcess::CrashExit || exitCode != 0) {
-                            QMessageBox::warning(this, "pcie ls failed",
-                                                 "The Zephyr guest did not return valid pcie ls output.");
+                        if (status == QProcess::CrashExit || exitCode != 0
+                            || !QFileInfo::exists(pcieLsLog)) {
+                            showPcieLsText(formatTopologyPciList(currentTopology));
+                            statusLabel->setText(QString("PCI list for %1 (guest capture unavailable)")
+                                                     .arg(topologyModeTitle()));
                             return;
                         }
-                        if (QFileInfo::exists(pcieLsLog)) {
-                            showPcieLsWindow(pcieLsLog);
-                        }
+                        showPcieLsWindow(pcieLsLog);
                     });
             proc->start();
-            statusLabel->setText(QString("Capturing pcie ls for %1 ...").arg(topologyModeTitle()));
+            statusLabel->setText(QString("Capturing guest PCI list for %1 ...").arg(topologyModeTitle()));
         });
         connect(closeButton, &QPushButton::clicked, aiEmulatorDialog, &QDialog::close);
         connect(aiEmulatorDialog, &QDialog::finished, this, [this]() {
