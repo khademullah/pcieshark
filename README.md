@@ -12,6 +12,22 @@
   <a href="https://khademullah.github.io/pcieshark/">khademullah.github.io/pcieshark</a>
 </p>
 
+<p align="center">
+  <img src="docs/assets/terminal-demo.gif" alt="Building pcieshark and tracking live QEMU pci_cfg TLPs">
+</p>
+
+<p align="center">
+  <img src="docs/assets/zephyr-gui-demo.gif" alt="Zephyr golden topology run and CfgRd/CfgWr in the pcieshark GUI">
+</p>
+
+<p align="center">
+  <img src="docs/assets/zephyr-full-trace-demo.gif" alt="Zephyr golden topology live capture of 1500+ TLPs">
+</p>
+
+<p align="center">
+  <img src="docs/assets/zephyr-full-trace-dark-demo.gif" alt="Zephyr golden topology live capture of 1500+ TLPs in dark theme">
+</p>
+
 pcieshark is a developer-facing toolkit for building, inspecting, and validating PCIe traffic. It combines a reusable C library (`libpcapcie`), example programs, a Qt GUI, and Zephyr or Linux QEMU topology flows so the same stack works on real hardware and emulated fabrics.
 
 It is designed to be:

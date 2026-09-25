@@ -308,7 +308,7 @@ OPENGL_opengl_LIBRARY:FILEPATH=/usr/lib/x86_64-linux-gnu/libOpenGL.so
 //Path to a file.
 OPENGL_xmesa_INCLUDE_DIR:PATH=OPENGL_xmesa_INCLUDE_DIR-NOTFOUND
 
-//Build the Qt trace analyzer GUI
+//Build the optional C++ Qt GUI (the product GUI is Python/PySide6)
 PCIE_BUILD_GUI:BOOL=ON
 
 //Additional directories where find(Qt6 ...) host Qt components
