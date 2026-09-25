@@ -241,8 +241,8 @@
         pcieshark
       </a>
       <div class="nav-links">
-        <a href="#demo">Demo</a>
         <a href="#features">Features</a>
+        <a href="#demo">Demo</a>
         <a href="#gui">Analyzer</a>
         <a href="#start">Start</a>
         <a href="https://github.com/khademullah/pcieshark">GitHub</a>
@@ -261,26 +261,6 @@
       </div>
     </header>
     <div class="trace" aria-hidden="true"></div>
-
-    <section id="demo">
-      <h2>Demo</h2>
-      <p class="lead">Zephyr golden fabric: live CfgRd/CfgWr through 1500+ TLPs.</p>
-      <img class="demo" src="docs/assets/zephyr-full-trace-dark-demo.gif" alt="Zephyr golden topology live capture of 1500+ TLPs in dark theme">
-      <p class="demo-links">
-        <a href="docs/demos/terminal.html">Build and pci_cfg terminal</a>
-        ·
-        <a href="docs/demos/zephyr-gui.html">Zephyr topology + analyzer</a>
-        ·
-        <a href="docs/demos/light-trace.html">Light theme of this 1500+ TLP capture</a>
-      </p>
-    </section>
-
-    <section>
-      <h2>Emulator walkthrough</h2>
-      <p class="lead">Golden-fabric walkthrough: live TLPs, topology enumeration, and measured config-space rate.</p>
-      <img class="demo" src="AI_PCIe_Emulator_optimized.gif" alt="pcieshark AI PCIe emulator demo">
-      <p class="lead" style="margin-top:12px"><a href="AI_PCIe_Emulator_optimized.mp4">Download MP4</a></p>
-    </section>
 
     <section id="features">
       <h2>What it does</h2>
@@ -304,13 +284,26 @@
         </article>
         <article>
           <h3>QEMU topologies</h3>
-          <p>A shared golden fabric for Zephyr and Linux guests: root ports, switches, storage, accelerators, and NICs.</p>
+          <p>Shared golden AI fabric for Zephyr or Linux guests: root ports, switches, NVMe, GPU stand-ins, NICs.</p>
         </article>
         <article>
           <h3>Measured cfg/s</h3>
-          <p>Times a config-space walk of the deployed fabric and reports measured transactions per second.</p>
+          <p>Emulator Measure times a real config-space walk of the deployed topology. No invented token rates.</p>
         </article>
       </div>
+    </section>
+
+    <section id="demo">
+      <h2>Demo</h2>
+      <p class="lead">Zephyr golden fabric: live CfgRd/CfgWr through 1500+ TLPs.</p>
+      <img class="demo" src="docs/assets/zephyr-full-trace-dark-demo.gif" alt="Zephyr golden topology live capture of 1500+ TLPs in dark theme">
+      <p class="demo-links">
+        <a href="docs/demos/terminal.html">Build and pci_cfg terminal</a>
+        ·
+        <a href="docs/demos/zephyr-gui.html">Zephyr topology + analyzer</a>
+        ·
+        <a href="docs/demos/light-trace.html">Light theme of this 1500+ TLP capture</a>
+      </p>
     </section>
 
     <section id="gui">
