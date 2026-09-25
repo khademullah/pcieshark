@@ -5,7 +5,7 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-option(PCIE_BUILD_GUI "Build the Qt trace analyzer GUI" ON)
+option(PCIE_BUILD_GUI "Build the optional C++ Qt GUI (the product GUI is Python/PySide6)" OFF)
 
 include_directories(include)
 

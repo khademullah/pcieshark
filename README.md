@@ -75,7 +75,7 @@ PCIe bring-up usually needs a mix of raw trace inspection, config-space enumerat
 - Linux
 - CMake 3.13+
 - C/C++ toolchain
-- Qt 6 development libraries for the GUI
+- Python 3 with PySide6 for the GUI (`pip install -r requirements.txt`)
 - Zephyr SDK and a kernel image for the Zephyr topology flow, or a Linux disk/kernel image for the Linux QEMU flow
 
 ### Zephyr-backed emulation
@@ -107,24 +107,14 @@ cmake --build build -j$(nproc)
 
 ### 3. Launch the GUI
 
-Run these from the repository root, not from `build/`:
+The desktop app is Python and still uses Qt (PySide6). From the repository root:
 
 ```bash
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
 ./run_pcieshark.sh
-# or
-./build/gui/pcieshark
 ```
 
-If you are already inside `build/`, the binary is `./gui/pcieshark`.
-
-After renaming this tree (for example from `libpcapcie` to `pcieshark`), reconfigure before calling `make` again:
-
-```bash
-cmake -S . -B build
-cmake --build build -j$(nproc)
-```
-
-The GUI can open and save traces, show packet details, filter rows, and run topology-related enumeration workflows.
 
 ## Build targets
 
@@ -136,7 +126,7 @@ The GUI can open and save traces, show packet details, filter rows, and run topo
 ./build/pci_link_status
 ./build/simple_tlp_test
 ./build/tlp_capture
-./build/gui/pcieshark
+./run_pcieshark.sh
 ```
 
 ## Trace workflow

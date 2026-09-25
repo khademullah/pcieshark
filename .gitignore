@@ -7,5 +7,6 @@ build/
 *.log
 *.qcow2
 linux-guest.qcow2
+.venv/
 .vscode/
 .DS_Store

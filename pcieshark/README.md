@@ -36,7 +36,7 @@ pcieshark supports two entry points with the same product name:
 2. GUI mode
    - best for interactive trace review and filtering
    - launch from the desktop entry or from the GUI app alias
-   - usage: ./build/gui/pcieshark
+   - usage: ./run_pcieshark.sh
 
 ## Current workflow
 
@@ -61,7 +61,7 @@ cmake --build build
 For the GUI workflow:
 
 ```bash
-./build/gui/pcieshark
+./run_pcieshark.sh
 ```
 
 Screenshots of the packet table, Match column, and light/dark themes are in [docs/assets](../docs/assets/). A sample HTML analysis report is [pcieshark_report.html](../docs/assets/pcieshark_report.html).

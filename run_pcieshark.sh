@@ -2,16 +2,19 @@
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-APP="$SCRIPT_DIR/build/gui/pcieshark"
+export PYTHONPATH="${SCRIPT_DIR}/gui/python${PYTHONPATH:+:${PYTHONPATH}}"
+export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-xcb}"
 
-if [ ! -x "$APP" ]; then
-    echo "pcieshark was not built yet. Run: cmake --build build --target pcieshark_gui" >&2
+if [[ -x "${SCRIPT_DIR}/.venv/bin/python" ]]; then
+    PYTHON="${SCRIPT_DIR}/.venv/bin/python"
+else
+    PYTHON="python3"
+fi
+
+if ! "$PYTHON" -c "import PySide6" >/dev/null 2>&1; then
+    echo "PySide6 is required for the pcieshark GUI." >&2
+    echo "  python3 -m venv .venv && .venv/bin/pip install -r requirements.txt" >&2
     exit 1
 fi
 
-# Force the system pthread/libc stack so Qt can launch correctly from a snap-hosted terminal.
-export QT_QPA_PLATFORM=${QT_QPA_PLATFORM:-xcb}
-export LD_LIBRARY_PATH="/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}"
-export LD_PRELOAD="/lib/x86_64-linux-gnu/libpthread.so.0${LD_PRELOAD:+:${LD_PRELOAD}}"
-
-exec "$APP" "$@"
+exec "$PYTHON" -m pcieshark_gui "$@"
