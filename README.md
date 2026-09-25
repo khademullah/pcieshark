@@ -13,19 +13,15 @@
 </p>
 
 <p align="center">
-  <img src="docs/assets/terminal-demo.gif" alt="Building pcieshark and tracking live QEMU pci_cfg TLPs">
-</p>
-
-<p align="center">
-  <img src="docs/assets/zephyr-gui-demo.gif" alt="Zephyr golden topology run and CfgRd/CfgWr in the pcieshark GUI">
-</p>
-
-<p align="center">
-  <img src="docs/assets/zephyr-full-trace-demo.gif" alt="Zephyr golden topology live capture of 1500+ TLPs">
-</p>
-
-<p align="center">
   <img src="docs/assets/zephyr-full-trace-dark-demo.gif" alt="Zephyr golden topology live capture of 1500+ TLPs in dark theme">
+</p>
+
+<p align="center">
+  <a href="docs/demos/terminal.md">Build and pci_cfg terminal</a>
+  ·
+  <a href="docs/demos/zephyr-gui.md">Zephyr topology + GUI</a>
+  ·
+  <a href="docs/demos/light-trace.md">Light theme of this 1500+ TLP capture</a>
 </p>
 
 pcieshark is a developer-facing toolkit for building, inspecting, and validating PCIe traffic. It combines a reusable C library (`libpcapcie`), example programs, a Qt GUI, and Zephyr or Linux QEMU topology flows so the same stack works on real hardware and emulated fabrics.
@@ -36,16 +32,6 @@ It is designed to be:
 - backend-driven and portable
 - useful on both real devices and emulated PCIe topologies
 - buildable with a standard CMake workflow
-
-## Demo
-
-Watch the AI PCIe emulator walkthrough and the PCIe trace/performance workflow:
-
-![AI PCIe Emulator Demo](AI_PCIe_Emulator_optimized.gif)
-
-[Download MP4 demo](AI_PCIe_Emulator_optimized.mp4)
-
-The demo covers live TLP viewing, AI topology enumeration, the golden fabric layout, and runtime performance status.
 
 ## Why this project exists
 

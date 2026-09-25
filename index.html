@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>pcieshark — PCIe trace, enumeration, and analysis</title>
-  <meta name="description" content="Open PCIe trace, enumeration, and analysis toolkit. C library, Qt GUI, and Zephyr or Linux QEMU topology flows.">
+  <meta name="description" content="Open PCIe trace, enumeration, and analysis toolkit. C library, desktop analyzer, and Zephyr or Linux QEMU topology flows.">
   <meta property="og:title" content="pcieshark">
   <meta property="og:description" content="Open PCIe trace, enumeration, and analysis toolkit.">
   <meta property="og:image" content="docs/assets/logo-web.png">
@@ -166,6 +166,13 @@
       display: block;
       background: var(--navy);
     }
+    .demo-links {
+      margin: 14px 0 0;
+      text-align: center;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .demo-links a { margin: 0 4px; }
 
     pre {
       margin: 0;
@@ -234,8 +241,9 @@
         pcieshark
       </a>
       <div class="nav-links">
+        <a href="#demo">Demo</a>
         <a href="#features">Features</a>
-        <a href="#gui">GUI</a>
+        <a href="#gui">Analyzer</a>
         <a href="#start">Start</a>
         <a href="https://github.com/khademullah/pcieshark">GitHub</a>
       </div>
@@ -245,7 +253,7 @@
       <img class="hero-mark" src="docs/assets/logo-web.png" alt="pcieshark logo">
       <div>
         <h1>pcieshark</h1>
-        <p class="tag">Open PCIe trace, enumeration, and analysis toolkit. Same stack on real devices and emulated fabrics.</p>
+        <p class="tag">Open toolkit for PCIe trace, enumeration, and analysis. One stack for real endpoints and emulated fabrics.</p>
         <div class="actions">
           <a class="btn btn-cyan" href="https://github.com/khademullah/pcieshark">View on GitHub</a>
           <a class="btn btn-gold" href="docs/assets/pcieshark_report.html">Sample analysis report</a>
@@ -254,9 +262,29 @@
     </header>
     <div class="trace" aria-hidden="true"></div>
 
+    <section id="demo">
+      <h2>Demo</h2>
+      <p class="lead">Zephyr golden fabric: live CfgRd/CfgWr through 1500+ TLPs.</p>
+      <img class="demo" src="docs/assets/zephyr-full-trace-dark-demo.gif" alt="Zephyr golden topology live capture of 1500+ TLPs in dark theme">
+      <p class="demo-links">
+        <a href="docs/demos/terminal.html">Build and pci_cfg terminal</a>
+        ·
+        <a href="docs/demos/zephyr-gui.html">Zephyr topology + analyzer</a>
+        ·
+        <a href="docs/demos/light-trace.html">Light theme of this 1500+ TLP capture</a>
+      </p>
+    </section>
+
+    <section>
+      <h2>Emulator walkthrough</h2>
+      <p class="lead">Golden-fabric walkthrough: live TLPs, topology enumeration, and measured config-space rate.</p>
+      <img class="demo" src="AI_PCIe_Emulator_optimized.gif" alt="pcieshark AI PCIe emulator demo">
+      <p class="lead" style="margin-top:12px"><a href="AI_PCIe_Emulator_optimized.mp4">Download MP4</a></p>
+    </section>
+
     <section id="features">
       <h2>What it does</h2>
-      <p class="lead">A reusable C library, CLI tools, and a Qt GUI for building, inspecting, and validating PCIe traffic — without a closed vendor stack.</p>
+      <p class="lead">Inspect and validate PCIe traffic on real endpoints and emulated fabrics. A portable C library and command-line tools sit under a desktop analyzer for live capture and offline review — open, inspectable, and independent of a vendor stack.</p>
       <div class="grid">
         <article>
           <h3>TLP create and parse</h3>
@@ -267,42 +295,35 @@
           <p>Open CSV, QEMU <code>pci_cfg_*</code> logs, or library captures. Match requests to completions.</p>
         </article>
         <article>
-          <h3>Live or offline GUI</h3>
-          <p>Packet table, payload hex, BDF decode, search, and HTML report export.</p>
+          <h3>Desktop analyzer</h3>
+          <p>Packet table, payload decode, BDF lookup, search, match analysis, and HTML report export.</p>
         </article>
         <article>
           <h3>PCI backend</h3>
-          <p>Read Linux sysfs config space on a real endpoint. Dummy backend for software-only work.</p>
+          <p>Read Linux sysfs config space on a live endpoint, or use the software dummy backend without hardware.</p>
         </article>
         <article>
           <h3>QEMU topologies</h3>
-          <p>Shared golden AI fabric for Zephyr or Linux guests: root ports, switches, NVMe, GPU stand-ins, NICs.</p>
+          <p>A shared golden fabric for Zephyr and Linux guests: root ports, switches, storage, accelerators, and NICs.</p>
         </article>
         <article>
           <h3>Measured cfg/s</h3>
-          <p>Emulator Measure times a real config-space walk of the deployed topology. No invented token rates.</p>
+          <p>Times a config-space walk of the deployed fabric and reports measured transactions per second.</p>
         </article>
       </div>
     </section>
 
-    <section id="demo">
-      <h2>Demo</h2>
-      <p class="lead">AI PCIe emulator walkthrough: live TLPs, golden fabric enumeration, and performance status.</p>
-      <img class="demo" src="AI_PCIe_Emulator_optimized.gif" alt="pcieshark AI PCIe emulator demo">
-      <p class="lead" style="margin-top:12px"><a href="AI_PCIe_Emulator_optimized.mp4">Download MP4</a></p>
-    </section>
-
     <section id="gui">
-      <h2>GUI</h2>
-      <p class="lead">Light and dark views of a live QEMU config-space trace, including Match analysis.</p>
+      <h2>Analyzer</h2>
+      <p class="lead">The same Zephyr golden session in light and dark: 1593 TLPs, live CfgRd/CfgWr, and Match analysis.</p>
       <div class="shots">
         <figure>
-          <img src="docs/assets/gui-trace-light.png" alt="pcieshark GUI in light theme">
-          <figcaption>Light — 1593 packets, 192 matched pairs, 0 unmatched</figcaption>
+          <img src="docs/assets/gui-trace-light.png" alt="pcieshark analyzer in light theme">
+          <figcaption>Light — 1593 TLPs from the golden fabric</figcaption>
         </figure>
         <figure>
-          <img src="docs/assets/gui-trace-dark.png" alt="pcieshark GUI in dark theme">
-          <figcaption>Dark — same session, CfgWr selected</figcaption>
+          <img src="docs/assets/gui-trace-dark.png" alt="pcieshark analyzer in dark theme">
+          <figcaption>Dark — same capture, CfgWr selected</figcaption>
         </figure>
       </div>
     </section>
@@ -321,7 +342,7 @@
 
     <section id="start">
       <h2>Quick start</h2>
-      <p class="lead">Linux, CMake 3.13+, a C/C++ toolchain, and Python 3 with PySide6 for the GUI.</p>
+      <p class="lead">Linux, CMake 3.13+, a C compiler, and Python 3 for the desktop analyzer.</p>
       <pre>git clone git@github.com:khademullah/pcieshark.git
 cd pcieshark
 cmake -S . -B build
