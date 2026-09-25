@@ -8,5 +8,7 @@ build/
 *.qcow2
 linux-guest.qcow2
 .venv/
+__pycache__/
+*.pyc
 .vscode/
 .DS_Store
