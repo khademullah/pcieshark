@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (c) 2026 Khadem Ullah
+
 """Golden fabric and in-process lspci / diagram helpers."""
 
 from __future__ import annotations

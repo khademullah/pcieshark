@@ -1,3 +1,8 @@
+/*
+ * SPDX-License-Identifier: AGPL-3.0-only
+ * Copyright (c) 2026 Khadem Ullah
+ */
+
 #include "MainWindow.h"
 
 #include "pcapcie/pcapcie.h"
@@ -1570,12 +1575,12 @@ void MainWindow::saveTrace()
         const QString payload = model->item(row, 8) ? model->item(row, 8)->text() : QString();
 
         if (asLog) {
-            if (addr.isEmpty()) {
-                continue;
-            }
+        if (addr.isEmpty()) {
+            continue;
+        }
             const QString op = (type == "CfgWr" || direction == "TX") ? "write" : "read";
             const QString arrow = (op == "write") ? "<-" : "->";
-            out << QString("pci_cfg_%1 %2 %3 @%4 %5 %6\n")
+        out << QString("pci_cfg_%1 %2 %3 @%4 %5 %6\n")
                     .arg(op, requester, completer, addr, arrow, payload);
             continue;
         }
@@ -1796,7 +1801,7 @@ bool parseRawTraceLine(const QString &line,
 
     *ts = match.captured("ts");
     if (ts->isEmpty()) {
-        *ts = QString::number(QDateTime::currentMSecsSinceEpoch());
+    *ts = QString::number(QDateTime::currentMSecsSinceEpoch());
     }
     *direction = (op == "write") ? QStringLiteral("TX") : QStringLiteral("RX");
     *type = (op == "write") ? QStringLiteral("CfgWr") : QStringLiteral("CfgRd");
@@ -2525,8 +2530,8 @@ void MainWindow::enumeratePciDevice()
         unsetenv("PCIE_PCI_DEVICE");
     }
 
-    unsetenv("PCIE_DUMMY_SCENARIO");
-    unsetenv("PCIE_DUMMY_PROFILE");
+            unsetenv("PCIE_DUMMY_SCENARIO");
+            unsetenv("PCIE_DUMMY_PROFILE");
 
     pcie_ctx_t *ctx = pcie_open(backendName.toLocal8Bit().constData());
     if (!ctx) {
@@ -2681,7 +2686,7 @@ void MainWindow::measureDeployedTopologyPerformance()
     lastPerfCfgPerSec = (static_cast<double>(txns) * 1e9) / static_cast<double>(elapsedNs);
 
     injectFabricEnumerationPackets();
-    updateAiPerformanceReadout();
+                    updateAiPerformanceReadout();
     statusLabel->setText(QString("Measured %1 devices on %2  ·  %3 cfg/s")
                              .arg(lastPerfDevices)
                              .arg(currentTopology.value("topology_name").toString("topology"))
@@ -2828,9 +2833,9 @@ void MainWindow::openAiPerfDialog()
                 || topologyRunMode == TopologyRunMode::LinuxQemu) {
                 loadGolden();
             } else {
-                currentTopology = generateTopologyFromCounts(rootPorts->value(), endpointPerRoot->value());
-                currentTopologyJsonPath.clear();
-                renderCurrentTopology();
+            currentTopology = generateTopologyFromCounts(rootPorts->value(), endpointPerRoot->value());
+            currentTopologyJsonPath.clear();
+            renderCurrentTopology();
             }
             pcieLsButton->setText(topologyRunMode == TopologyRunMode::LinuxQemu
                                       ? QStringLiteral("Show lspci")
@@ -2895,7 +2900,7 @@ void MainWindow::openAiPerfDialog()
             liveTraceProcess->setProcessChannelMode(QProcess::MergedChannels);
             QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
             if (!topoPath.isEmpty()) {
-                env.insert("TOPOLOGY_JSON", topoPath);
+            env.insert("TOPOLOGY_JSON", topoPath);
             }
             env.insert("TRACE_LOG", traceLog);
             env.insert("PCIE_HEADLESS", "1");
@@ -2995,7 +3000,7 @@ void MainWindow::openAiPerfDialog()
                                                      .arg(topologyModeTitle()));
                             return;
                         }
-                        showPcieLsWindow(pcieLsLog);
+                            showPcieLsWindow(pcieLsLog);
                     });
             proc->start();
             statusLabel->setText(QString("Capturing guest PCI list for %1 ...").arg(topologyModeTitle()));
@@ -3058,7 +3063,7 @@ void MainWindow::applyFilter()
                 haystack += ' ';
             }
             if (!haystack.toLower().contains(text)) {
-                visible = false;
+            visible = false;
             }
         }
 

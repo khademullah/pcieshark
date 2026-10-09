@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (c) 2026 Khadem Ullah
+
 # Linux QEMU runner: the verified x86_64 q35 command with the golden fabric.
 set -euo pipefail
 

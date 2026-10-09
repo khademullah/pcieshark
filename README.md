@@ -291,4 +291,13 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Useful areas include backends, parsing/f
 
 ## License
 
-[MIT](LICENSE)
+**[GNU Affero General Public License v3.0](LICENSE)** (AGPL-3.0-only).
+
+This is a strong copyleft license. In short:
+
+- You may use, study, and modify the software.
+- If you distribute binaries or modified versions, you must provide complete corresponding source under AGPL-3.0.
+- If you run a modified version on a server and let others interact with it over a network, you must offer them the source of that version.
+- Proprietary relicensing or closed forks are not allowed without a separate commercial grant from the copyright holder.
+
+Copyright (c) 2026 Khadem Ullah.

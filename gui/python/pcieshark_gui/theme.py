@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (c) 2026 Khadem Ullah
+
 DARK = """
 QMainWindow { background: #0f172a; color: #e2e8f0; }
 QWidget { font-family: "Noto Sans", "DejaVu Sans", "Segoe UI", sans-serif; color: #e2e8f0; }

@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (c) 2026 Khadem Ullah
+
 """PCI enumerate helpers used by the Python Qt UI (dummy + Linux sysfs)."""
 
 from __future__ import annotations

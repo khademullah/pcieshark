@@ -1,3 +1,8 @@
+/*
+ * SPDX-License-Identifier: AGPL-3.0-only
+ * Copyright (c) 2026 Khadem Ullah
+ */
+
 #ifndef PCIE_TOPOLOGY_H
 #define PCIE_TOPOLOGY_H
 

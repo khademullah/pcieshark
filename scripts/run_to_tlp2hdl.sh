@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (c) 2026 Khadem Ullah
+
 # Capture (optional) → export CSV → gate in TLP2HDL.
 # Covers cfg (pci_cfg_*) and Mem (memory_region_ops_*) paths.
 set -euo pipefail
