@@ -133,10 +133,10 @@ python3 -m venv .venv
 
 ## Trace workflow
 
-- **Open** a captured CSV, QEMU `pci_cfg_*` log, or library pcap (`.pcie`) in the GUI.
+- **Open** a captured CSV, QEMU `pci_cfg_*` / `memory_region_ops_*` log, or library pcap (`.pcie`) in the GUI.
 - **Save** the active table as CSV (default) so it reloads with the same columns.
 - **Inspect a row** for header fields, BDF/RID decode, payload hex, and PCI config meaning.
-- **Match** CfgRd/MemRd requests to Cpl completions (double-click the Match column to jump).
+- **Match** CfgRd/MemRd ↔ Cpl; posted CfgWr/MemWr and one-line MMIO reads count as `complete` (double-click Match to jump).
 - Filter by type, direction, unmatched/matched, or full-text search across every column.
 - **Export report** writes an HTML analysis of the open trace: type counts, match summary, devices seen at config offset `0x00`, and unmatched requests. A sample from the golden fabric is in [docs/assets/pcieshark_report.html](docs/assets/pcieshark_report.html).
 
@@ -193,16 +193,32 @@ The same built-in golden fabric is attached as QEMU `-device` arguments for eith
 
 ```bash
 ./scripts/run_zephyr_ai_topology.sh
+CAPTURE_MEM=1 RUN_TIMEOUT_SECONDS=15 ./scripts/run_zephyr_ai_topology.sh
 ```
 
 The Zephyr script checks the venv, source tree, SDK, QEMU binary, and kernel image, then starts the emulated topology. Override paths with `ZEPHYR_BASE`, `ZEPHYR_SDK_INSTALL_DIR`, and `KERNEL_PATH` as needed.
 
+- Default traces: `pci_cfg_*` (CfgRd/CfgWr).
+- `CAPTURE_MEM=1` also enables `memory_region_ops_{read,write}` → MemRd/MemWr (noisy; filter on export).
+- `QEMU_TRACE='pci_cfg_*,memory_region_ops_read'` fully overrides the pattern list.
+
 ```bash
 ./scripts/run_linux_ai_topology.sh
-DISK_IMAGE=/path/to/linux.qcow2 ./scripts/run_linux_ai_topology.sh
+DISK_IMAGE=/path/to/linux.qcow2 CAPTURE_MEM=1 ./scripts/run_linux_ai_topology.sh
 ```
 
 The Linux runner is `qemu-system-x86_64` on q35 with `-vga none` and the same golden `-device` fabric. It uses `linux-guest.qcow2` in the repo if present. In the GUI, pick **Linux QEMU runner** in the AI emulator to use this path.
+
+### Export → TLP2HDL
+
+```bash
+# Capture + export CSV + gate in TLP2HDL
+CAPTURE_MEM=1 RUN_TIMEOUT_SECONDS=10 ./scripts/run_to_tlp2hdl.sh
+
+# Or export only
+python3 scripts/export_trace_csv.py out/fabric_trace.log -o out/fabric_mem.csv \
+  --types MemRd,MemWr --name-filter pcie,nvme,e1000 --exclude-name pl011,gicv3
+```
 
 ## PCI backend notes
 

@@ -18,8 +18,19 @@ PCI_CFG_RE = re.compile(
     r"@(?P<offset>0x[0-9A-Fa-f]+)\s*(?P<arrow>->|<-)\s*(?P<value>0x[0-9A-Fa-f]+)\s*$"
 )
 
+# QEMU -trace memory_region_ops_{read,write}
+MEMORY_OPS_RE = re.compile(
+    r"^(?:(?P<ts>\d+(?:\.\d+)?)\s*:\s*)?memory_region_ops_(?P<op>read|write)\s+"
+    r"cpu\s+(?P<cpu>\d+)\s+mr\s+\S+\s+"
+    r"addr\s+(?P<addr>0x[0-9A-Fa-f]+)\s+"
+    r"value\s+(?P<value>0x[0-9A-Fa-f]+)\s+"
+    r"size\s+(?P<size>\d+)\s+"
+    r"name\s+'(?P<name>[^']*)'\s*$"
+)
+
 TYPE_NAMES = {"0": "MemRd", "1": "MemWr", "4": "CfgRd", "5": "CfgWr", "10": "Cpl"}
 REQUEST_TYPES = {"CfgRd", "CfgRead", "MemRd", "MemRead"}
+POSTED_TYPES = {"CfgWr", "CfgWrite", "MemWr", "MemWrite"}
 COMPLETION_TYPES = {"Cpl", "CplD", "Completion"}
 
 
@@ -66,6 +77,31 @@ def parse_cfg_line(line: str) -> dict[str, str] | None:
     }
 
 
+def parse_memory_ops_line(line: str) -> dict[str, str] | None:
+    """Turn QEMU memory_region_ops_* into teaching MemRd/MemWr (complete one-liners)."""
+    match = MEMORY_OPS_RE.match(line.strip())
+    if not match:
+        return None
+    op = match.group("op")
+    value = int(match.group("value"), 0)
+    size = int(match.group("size"))
+    nbytes = size if size in (1, 2, 4, 8) else 4
+    payload = " ".join(f"{(value >> (8 * i)) & 0xFF:02x}" for i in range(min(nbytes, 4)))
+    return {
+        "ts": match.group("ts") or str(int(time.time() * 1000)),
+        "direction": "TX",
+        "type": "MemWr" if op == "write" else "MemRd",
+        "requester": f"cpu{match.group('cpu')}",
+        "completer": match.group("name") or "mmio",
+        "tag": "0",
+        "length": str(nbytes),
+        "addr": match.group("addr"),
+        "payload": payload,
+        "match": "—",
+        "pair": -1,
+    }
+
+
 def split_csv_line(line: str) -> list[str]:
     return next(csv.reader(io.StringIO(line)))
 
@@ -104,7 +140,7 @@ def load_rows(path: str) -> list[dict[str, str | int]]:
                 "pair": -1,
             })
             continue
-        parsed = parse_cfg_line(line)
+        parsed = parse_cfg_line(line) or parse_memory_ops_line(line)
         if parsed:
             rows.append(parsed)
     analyze(rows)
@@ -153,6 +189,9 @@ def analyze(rows: list[dict[str, str | int]]) -> None:
         row["match"] = "—"
         row["pair"] = -1
         kind = str(row["type"])
+        if kind in POSTED_TYPES:
+            row["match"] = "complete"
+            continue
         if kind in REQUEST_TYPES:
             if str(row["payload"]).strip():
                 row["match"] = "complete"

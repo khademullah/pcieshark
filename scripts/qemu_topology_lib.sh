@@ -1,5 +1,5 @@
-# Shared golden PCIe fabric. Sourced by the Zephyr and Linux runners.
-# These tokens match the verified qemu-system-x86_64 command.
+# Shared golden PCIe fabric + QEMU trace helpers.
+# Sourced by Zephyr / Linux runners and capture→TLP2HDL scripts.
 
 append_golden_fabric() {
     QEMU_ARGS+=(
@@ -30,4 +30,41 @@ append_golden_fabric() {
         -netdev user,id=net2
         -device e1000e,id=eth2,netdev=net2,bus=switch3_dp1,addr=00.0
     )
+}
+
+# Build QEMU -trace args.
+#   QEMU_TRACE=...     full override (space/comma separated patterns)
+#   CAPTURE_MEM=1      also enable memory_region_ops_{read,write} (noisy MMIO)
+# Default: pci_cfg_* only (config-space TLPs).
+qemu_trace_patterns() {
+    local patterns=()
+    local tok
+    if [[ -n "${QEMU_TRACE:-}" ]]; then
+        # shellcheck disable=SC2206
+        IFS=', ' read -r -a patterns <<< "${QEMU_TRACE}"
+    else
+        patterns=(pci_cfg_*)
+        if [[ "${CAPTURE_MEM:-0}" == "1" ]]; then
+            patterns+=(memory_region_ops_read memory_region_ops_write)
+        fi
+    fi
+    QEMU_TRACE_ARGS=()
+    for tok in "${patterns[@]}"; do
+        [[ -z "$tok" ]] && continue
+        QEMU_TRACE_ARGS+=(-trace "$tok")
+    done
+}
+
+print_qemu_trace_summary() {
+    qemu_trace_patterns
+    printf 'QEMU traces:'
+    local a
+    for a in "${QEMU_TRACE_ARGS[@]}"; do
+        [[ "$a" == "-trace" ]] && continue
+        printf ' %s' "$a"
+    done
+    printf '\n'
+    if [[ "${CAPTURE_MEM:-0}" == "1" ]] || [[ "${QEMU_TRACE:-}" == *memory_region_ops* ]]; then
+        printf 'Note: memory_region_ops_* is noisy; filter by region name when exporting CSV.\n'
+    fi
 }

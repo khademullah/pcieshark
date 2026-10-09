@@ -10,6 +10,7 @@ PCIE_LS_LOG="${PCIE_LS_LOG:-${PWD}/zephyr_pcie_ls.log}"
 PCIE_LS_CAPTURE="${PCIE_LS_CAPTURE:-0}"
 QEMU_CONSOLE_PORT="${QEMU_CONSOLE_PORT:-4444}"
 RUN_TIMEOUT_SECONDS="${RUN_TIMEOUT_SECONDS:-0}"
+CAPTURE_MEM="${CAPTURE_MEM:-0}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # shellcheck source=qemu_topology_lib.sh
@@ -87,7 +88,9 @@ printf 'Topology: built-in golden fabric\n'
 printf 'Trace log: %s\n' "$TRACE_LOG"
 printf 'pcie ls log: %s\n' "$PCIE_LS_LOG"
 printf 'pcie ls capture: %s\n' "$PCIE_LS_CAPTURE"
+printf 'CAPTURE_MEM: %s\n' "$CAPTURE_MEM"
 printf 'console port: %s\n' "$QEMU_CONSOLE_PORT"
+print_qemu_trace_summary
 
 cleanup_stale_qemu_lock() {
     local pidfile="${PWD}/qemu.pid"
@@ -155,10 +158,11 @@ append_golden_fabric
 
 QEMU_ARGS+=(-kernel "$KERNEL_PATH")
 
+qemu_trace_patterns
 if [[ "$PCIE_LS_CAPTURE" == "1" ]]; then
   "${QEMU_BIN}" "${QEMU_ARGS[@]}" > /tmp/zephyr_ai_qemu_stdout.log 2>&1 &
 else
-  "${QEMU_BIN}" "${QEMU_ARGS[@]}" -trace pci_cfg_* 2>&1 | tee "$TRACE_LOG" &
+  "${QEMU_BIN}" "${QEMU_ARGS[@]}" "${QEMU_TRACE_ARGS[@]}" 2>&1 | tee "$TRACE_LOG" &
 fi
 QEMU_PID=$!
 

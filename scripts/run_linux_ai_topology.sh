@@ -10,6 +10,7 @@ source "${SCRIPT_DIR}/qemu_topology_lib.sh"
 QEMU_BIN="${QEMU_BIN:-qemu-system-x86_64}"
 TRACE_LOG="${TRACE_LOG:-${PWD}/linux_ai_topology_trace.log}"
 RUN_TIMEOUT_SECONDS="${RUN_TIMEOUT_SECONDS:-0}"
+CAPTURE_MEM="${CAPTURE_MEM:-0}"
 DISK_IMAGE="${DISK_IMAGE:-}"
 
 if [[ -z "$DISK_IMAGE" ]]; then
@@ -49,6 +50,8 @@ fi
 printf 'Using QEMU=%s\n' "$QEMU_BIN"
 printf 'Using DISK=%s\n' "$DISK_IMAGE"
 printf 'Trace log: %s\n' "$TRACE_LOG"
+printf 'CAPTURE_MEM: %s\n' "$CAPTURE_MEM"
+print_qemu_trace_summary
 
 cleanup() {
     if [[ -n "${QEMU_PID:-}" ]] && kill -0 "$QEMU_PID" 2>/dev/null; then
@@ -85,13 +88,14 @@ QEMU_ARGS=(
 )
 append_golden_fabric
 
+qemu_trace_patterns
 printf 'QEMU command:\n'
 printf '  %q' "$QEMU_BIN"
 printf ' %q' "${QEMU_ARGS[@]}"
-printf ' %q' -trace 'pci_cfg_*'
+printf ' %q' "${QEMU_TRACE_ARGS[@]}"
 printf '\n'
 
-"${QEMU_BIN}" "${QEMU_ARGS[@]}" -trace pci_cfg_* 2>&1 | tee "$TRACE_LOG" &
+"${QEMU_BIN}" "${QEMU_ARGS[@]}" "${QEMU_TRACE_ARGS[@]}" 2>&1 | tee "$TRACE_LOG" &
 QEMU_PID=$!
 
 if [[ "$RUN_TIMEOUT_SECONDS" =~ ^[0-9]+$ ]] && (( RUN_TIMEOUT_SECONDS > 0 )); then
